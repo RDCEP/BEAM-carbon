@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from math import sqrt
+from math import sqrt, floor
 import numpy as np
 from sympy import symbols, solve, Eq
 
@@ -124,21 +124,26 @@ class BEAMCarbon(object):
     def run(self):
         output = np.tile(np.concatenate((
             self.initial_carbon,
-            self.transfer_matrix.reshape((9)))).reshape((12, 1)).copy(),
+            self.transfer_matrix.reshape(9))).reshape((12, 1)).copy(),
             self.n + 1)
         mass_tmp = self.initial_carbon.copy()
-        N = self.periods * self.n
+        emissions = np.zeros(3)
 
-        for y in xrange(self.n):
-            for p in xrange(self.periods):
+        for i in xrange(self.n * self.periods):
 
-                h = self.get_h(mass_tmp[1])
-                self.B = self.get_B(h)
-                mass_tmp += ((
-                    self.transfer_matrix * mass_tmp +
-                    np.array([self.emissions[y] * self.time_step, 0, 0])) / self.periods).sum(axis=1)
+            h = self.get_h(mass_tmp[1])
+            self.B = self.get_B(h)
 
-            output[:, y+1] = np.concatenate((mass_tmp.copy(), self.transfer_matrix.reshape((9))))
+            if i % self.periods == 0:
+                emissions[0] = self.emissions[int(floor(i / self.periods))] * self.time_step
+
+            mass_tmp += ((self.transfer_matrix * mass_tmp + emissions) /
+                         self.periods).sum(axis=1)
+
+            if (i + 1) % self.periods == 0:
+                output[:, i / self.periods + 1] = (
+                    np.concatenate((mass_tmp.copy(),
+                                    self.transfer_matrix.reshape((9)))))
         return output
 
     def get_B(self, h):
