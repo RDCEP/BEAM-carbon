@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from math import floor
 import numpy as np
 
 
 class Temperature(object):
+    def __init__(self, time_step, periods, n):
+        self.time_step = time_step
+        self.periods = periods
+        self.n = n
 
     @property
     def initial_temp(self):
@@ -47,12 +52,12 @@ class Temperature(object):
             nd.array: Array of forcing values, n=params.tmax
 
         """
-        return np.concatenate((
-            self.forcing_ghg_2000 + .1 * (
+        _n = int(floor(100 / self.time_step))
+        a = self.forcing_ghg_2000 + (1 / _n) * (
                 self.forcing_ghg_2100 - self.forcing_ghg_2000
-            ) * np.arange(11),
-            self.forcing_ghg_2100 * np.ones(49),
-        ))
+            ) * np.arange(_n + 1)
+        b = self.forcing_ghg_2100 * np.ones(self.n - (_n + 1)) if self.n > _n else np.array([])
+        return np.concatenate((a, b))[:self.n]
 
     def forcing(self, index, mass_atmosphere):
         """Forcing equation
@@ -72,8 +77,6 @@ class Temperature(object):
 
 
 class DICETemperature(Temperature):
-    def __init__(self):
-        pass
 
     def temp_atmosphere(self, index, temp_atmosphere, temp_lower, mass_atmosphere=None):
         """T_AT, increase in atmospheric temperature since 1750, degrees C
@@ -101,7 +104,7 @@ class DICETemperature(Temperature):
         )
 
     def temp_lower(self, temp_atmosphere, temp_lower):
-        """T_AT, increase in atmospheric temperature since 1750, degrees C
+        """T_LO, increase in atmospheric temperature since 1750, degrees C
 
          Args:
             :param i: current time step
