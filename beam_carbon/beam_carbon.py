@@ -3,6 +3,7 @@
 from math import sqrt, floor
 import numpy as np
 from sympy import symbols, solve, Eq
+from temperature import DICETemperature
 
 
 class BEAMCarbon(object):
@@ -10,6 +11,9 @@ class BEAMCarbon(object):
         self._emissions = emissions if emissions is not None else np.zeros(100)
         self._periods = periods
         self._time_step = time_step
+        self._k_1 = 8e-7
+        self._k_2 = 4.53e-10
+        self._k_h = 1.23e3
         self._A = None
         self._B = None
         self._transfer_matrix = np.array([
@@ -17,6 +21,7 @@ class BEAMCarbon(object):
             self.k_a, -(self.k_a * self.A * self.B) - self.k_d, self.k_d / self.delta,
             0, self.k_d, -self.k_d / self.delta,
         ]).reshape((3, 3,))
+        self.temperature = DICETemperature(self.time_step, self.periods, self.n)
 
     @property
     def initial_carbon(self):
@@ -37,6 +42,7 @@ class BEAMCarbon(object):
     @emissions.setter
     def emissions(self, value):
         self._emissions = value
+        self.temperature.n = self.n
 
     @property
     def time_step(self):
@@ -45,6 +51,7 @@ class BEAMCarbon(object):
     @time_step.setter
     def time_step(self, value):
         self._time_step = value
+        self.temperature.time_step = self.time_step
 
     @property
     def n(self):
@@ -57,6 +64,7 @@ class BEAMCarbon(object):
     @periods.setter
     def periods(self, value):
         self._periods = value
+        self.temperature.periods = self.periods
 
     @property
     def k_a(self):
@@ -73,15 +81,27 @@ class BEAMCarbon(object):
     @property
     def k_h(self):
         # return 1.91e3
-        return 1.23e3
+        return self._k_h
+
+    @k_h.setter
+    def k_h(self, value):
+        self._k_h = value
 
     @property
     def k_1(self):
-        return 8e-7
+        return self._k_1
+
+    @k_1.setter
+    def k_1(self, value):
+        self._k_1 = value
 
     @property
     def k_2(self):
-        return 4.53e-10
+        return self._k_2
+
+    @k_2.setter
+    def k_2(self, value):
+        self._k_2 = value
 
     @property
     def AM(self):
@@ -128,20 +148,30 @@ class BEAMCarbon(object):
             self.n + 1)
         mass_tmp = self.initial_carbon.copy()
         emissions = np.zeros(3)
+        ta, to = self.temperature.initial_temp
 
         for i in xrange(self.n * self.periods):
 
+            _i = int(floor(i / self.periods))
+            self.k_1 = self.get_k1(to)
+            # print(self.k_2)
+            # self.k_2 = self.get_k2(to)
+            # print(self.k_2)
+            self.k_h = self.get_kh(to)
             h = self.get_h(mass_tmp[1])
             self.B = self.get_B(h)
 
             if i % self.periods == 0:
-                emissions[0] = self.emissions[int(floor(i / self.periods))] * self.time_step
+
+                emissions[0] = self.emissions[_i] * self.time_step
+                ta = self.temperature.temp_atmosphere(_i, ta, to, mass_tmp[0])
+                to = self.temperature.temp_lower(ta, to)
 
             mass_tmp += ((self.transfer_matrix * mass_tmp + emissions) /
                          self.periods).sum(axis=1)
 
             if (i + 1) % self.periods == 0:
-                output[:, i / self.periods + 1] = (
+                output[:, _i + 1] = (
                     np.concatenate((mass_tmp.copy(),
                                     self.transfer_matrix.reshape((9)))))
         return output
@@ -199,12 +229,21 @@ class BEAMCarbon(object):
         :param t: temperature (C)
         :return:
         """
-        t += 273.15
+        t += 283.15
+        print(5371.96 + 1.671221 * t + 0.22913 * self.salinity +
+            18.3802 * np.log(self.salinity))
+        print(np.log(t),
+              128375.28 / t,
+              2194.30 * np.log(t),
+              8.0944e-4 * self.salinity * t,
+              5617.11 * np.log(self.salinity) / t)
+        print(2.136 * self.salinity / t)
         pk2 = (
-            5371.96 + 1.671221 * t + 0.22913 * self.salinity +
-            18.3802 * np.log(self.salinity) - 128375.28 / t -
-            2194.30 * np.log(t) - 8.0944e-4 * self.salinity * t -
-            5617.11 * np.log(self.salinity) + 2.136 * self.salinity)
+            5371.96 + (1.671221 * t) + (0.22913 * self.salinity) +
+            (18.3802 * np.log(self.salinity)) - (128375.28 / t) -
+            (2194.30 * np.log(t)) - (8.0944e-4 * self.salinity * t) -
+            (5617.11 * np.log(self.salinity) / t) + (2.136 * self.salinity / t))
+        print pk2
         return 10 ** -pk2
 
 
