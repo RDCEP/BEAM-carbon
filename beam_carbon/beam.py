@@ -377,18 +377,6 @@ def main():
         input_group.add_argument(
             '-c', '--input', '--csv', type=str,
             help='Path to CSV file to use as input.')
-        unknown_emissions = input_group.add_argument(
-            '-f', '--emissions0', type=float,
-            help='Annual emissions in initial time period.'
-        )
-        parser.add_argument(
-            '-p', '--periods', type=int,
-            help='Periods to calculate in emissions path.'
-        )
-        parser.add_argument(
-            '-g', '--growth', type=float,
-            help='Denominator of emissions growth.'
-        )
         parser.add_argument(
             '-t', '--timestep', type=float, default=1,
             help='Time step for input values in years. Default is 1.')
@@ -409,8 +397,6 @@ def main():
             beam.time_step = args.timestep
         if args.intervals:
             beam.intervals = args.intervals
-        if args.emissions0:
-            beam.emissions = args.emissions0 * np.exp(-np.arange(args.periods)/args.growth)
         return beam.run()
 
     def write_beam(output, csv=None):
