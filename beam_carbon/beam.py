@@ -1,27 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from math import floor
+from __future__ import division
+from math import floor, sqrt
 import numpy as np
 from sympy import symbols, solve, Eq
-from beam_carbon.temperature import DICETemperature
+from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
 class BEAMCarbon(object):
     """Class for computing BEAM carbon cycle from emissions input.
     """
     def __init__(self, emissions=None, time_step=1, intervals=10):
-        """
+        """BEAMCarbon init
 
-        :param emissions: Array of annual emissions in GtC, beginning in 2005
-        :type emissions: list
-        :param time_step: Time between emissions values in years
-        :type time_step: float
-        :param intervals: Nuber of times to calculate BEAM carbon per timestep
-        :type intervals: int
-        :param e0: Emissions at t0 if emissions in each timestep are unknown
-                   (incompatible with emissions parameter)
-        :type e0: float
-        :return: None
+        Args:
+            :param emissions: Array of annual emissions in GtC, beginning in 2005
+            :type emissions: list
+            :param time_step: Time between emissions values in years
+            :type time_step: float
+            :param intervals: Nuber of times to calculate BEAM carbon per timestep
+            :type intervals: int
         """
         self._temperature_dependent = True
         self._intervals = intervals
@@ -31,19 +29,15 @@ class BEAMCarbon(object):
         if emissions is not None and type(emissions) in [list, np.ndarray]:
             self.emissions = emissions
         else:
-            self.emissions = np.zeros(100)
+            self.emissions = np.zeros(1)
 
         self._k_1 = 8e-7
         self._k_2 = 4.53e-10
         self._k_h = 1.23e3
         self._A = None
         self._B = None
-        self._transfer_matrix = np.array([
-            -self.k_a, self.k_a * self.A * self.B, 0,
-            self.k_a, -(self.k_a * self.A * self.B) - self.k_d,
-            self.k_d / self.delta,
-            0, self.k_d, -self.k_d / self.delta,
-        ]).reshape((3, 3,))
+
+        self._linear_temperature = False
 
     @property
     def initial_carbon(self):
@@ -56,7 +50,6 @@ class BEAMCarbon(object):
     def transfer_matrix(self):
         """3 by 3 matrix of transfer coefficients for carbon cycle.
         """
-        # return self._transfer_matrix
         return np.array([
             -self.k_a, self.k_a * self.A * self.B, 0,
             self.k_a, -(self.k_a * self.A * self.B) - self.k_d,
@@ -175,7 +168,7 @@ class BEAMCarbon(object):
         if self._A is None:
             if self.temperature_dependent:
                 self.k_h = self.get_kh(self.temperature.initial_temp[1])
-            self.get_A()
+            self._A = self.get_A()
         return self._A
 
     @A.setter
@@ -188,7 +181,7 @@ class BEAMCarbon(object):
         """
         if self._B is None:
             self.temp_calibrate(self.temperature.initial_temp[1])
-            self._B = self.get_B(self.get_h(self.initial_carbon[1]))
+            self._B = self.get_B(self.get_H(self.initial_carbon[1]))
         return self._B
 
     @B.setter
@@ -208,6 +201,18 @@ class BEAMCarbon(object):
         """
         return self._temperature_dependent
 
+    @property
+    def linear_temperature(self):
+        return self._linear_temperature
+
+    @linear_temperature.setter
+    def linear_temperature(self, value):
+        if value:
+            self.temperature = LinearTemperature(self.time_step, self.intervals, self.n)
+        else:
+            self.temperature = DICETemperature(self.time_step, self.intervals, self.n)
+        self._linear_temperature = value
+
     @temperature_dependent.setter
     def temperature_dependent(self, value):
         if type(value) is bool:
@@ -224,40 +229,52 @@ class BEAMCarbon(object):
         self.A = self.get_A()
 
     def run(self):
+        N = self.n * self.intervals
         output = np.tile(np.concatenate((
             self.initial_carbon,
             self.temperature.initial_temp,
             self.transfer_matrix.reshape(9))).reshape((14, 1)).copy(),
             self.n + 1)
-        mass_tmp = self.initial_carbon.copy()
+        carbon_mass = self.initial_carbon.copy()
+        total_carbon = 0
         emissions = np.zeros(3)
-        ta, to = self.temperature.initial_temp
+        temp_atmosphere, temp_ocean = self.temperature.initial_temp
 
-        for i in xrange(self.n * self.intervals):
+        for i in xrange(N):
 
             _i = int(floor(i / self.intervals)) # time_step
             if self.temperature_dependent:
-                self.temp_calibrate(to)
-            h = self.get_h(mass_tmp[1])
+                self.temp_calibrate(temp_ocean)
+            h = self.get_H(carbon_mass[1])
             self.B = self.get_B(h)
 
-            if i % self.intervals == 0:
+            if i % self.intervals == 0: # First interval in time step
 
                 emissions[0] = self.emissions[_i] * self.time_step
-                ta = self.temperature.temp_atmosphere(_i, ta, to, mass_tmp[0])
-                to = self.temperature.temp_lower(ta, to)
+                total_carbon += emissions[0]
 
-            mass_tmp += ((self.transfer_matrix * mass_tmp + emissions) /
+                temp_atmosphere = self.temperature.temp_atmosphere(
+                    index=_i, temp_atmosphere=temp_atmosphere,
+                    temp_ocean=temp_ocean, mass_atmosphere=carbon_mass[0],
+                    carbon=total_carbon, initial_carbon=self.initial_carbon,
+                    phi11=self.transfer_matrix[0][0],
+                    phi21=self.transfer_matrix[1][0])
+                temp_ocean = self.temperature.temp_ocean(
+                    temp_atmosphere, temp_ocean)
+
+            carbon_mass += ((self.transfer_matrix * carbon_mass + emissions) /
                          self.intervals).sum(axis=1)
 
             if (i + 1) % self.intervals == 0:
                 output[:, _i + 1] = (
-                    np.concatenate((mass_tmp.copy(), np.array([ta, to]),
+                    np.concatenate((carbon_mass.copy(),
+                                    np.array([temp_atmosphere, temp_ocean]),
                                     self.transfer_matrix.reshape((9)))))
         return output
 
     def get_B(self, h):
-        """Calculate B given H
+        """Calculate B (Ratio of dissolved CO2 to total oceanic carbon),
+         given H (the concentration of hydrogen ions)
 
         :param h: H, concentration of hydrogen ions [H+] (the (pH) of seawater)
         :type h: float
@@ -272,65 +289,73 @@ class BEAMCarbon(object):
         :return: A
         :rtype: float
         """
-        self.k_h * self.AM / (self.OM / (self.delta + 1))
+        return self.k_h * self.AM / (self.OM / (self.delta + 1))
 
-    def get_h(self, mu):
-        """Solve for H+, the concentration of hydrogen ions [H+]
+    def get_H(self, mass_upper, re_solve=False):
+        """Solve for H+, the concentration of hydrogen ions
         (the (pH) of seawater).
 
-        :param t: Carbon mass in ocenas in GtC
-        :type t: float
+        :param mass_upper: Carbon mass in ocenas in GtC
+        :type mass_upper: float
         :return: H
         :rtype: float
         """
-        h = symbols('h')
-        a = mu / self.Alk
-        f = Eq(
-            (h**2 + self.k_1 * h + self.k_1 * self.k_2) / self.k_1,
-            a * (h + 2 * self.k_2)
-        )
-        return max(solve(f, h))
+        if re_solve:
+            h = symbols('h')
+            a = mass_upper / self.Alk
+            f = Eq(
+                (h**2 + self.k_1 * h + self.k_1 * self.k_2) / self.k_1,
+                a * (h + 2 * self.k_2)
+            )
+            return max(solve(f, h))
+        return (
+            -self.k_1 * (self.Alk - mass_upper) / (2 * self.Alk) +
+             sqrt(self.k_1 * (self.Alk ** 2 * self.k_1 -
+                              4 * self.Alk ** 2 * self.k_2 -
+                              2 * self.Alk * self.k_1 * mass_upper +
+                              8 * self.Alk * self.k_2 * mass_upper +
+                              self.k_1 * mass_upper ** 2)) / (2 * self.Alk))
 
-    def get_kh(self, t):
+    def get_kh(self, temp_ocean):
         """Calculate temperature dependent k_h
 
-        :param t: temperature (C)
-        :type t: float
+        :param temp_ocean: ocean temperature (C)
+        :type temp_ocean: float
         :return: k_h
         :rtype: float
         """
-        t += 283.15
+        t = 283.15 + temp_ocean
         k0 = np.exp(
             9345.17 / t - 60.2409 + 23.3585 * np.log(t / 100.) +
             self.salinity * (
-                .023517 - .00023656 * t + .0047036 * (t / 100) ** 2))
+                .023517 - .00023656 * t + .0047036 * (t / 100.) ** 2))
         kh = 1 / (k0 * 1.027) * 55.57
         self.A = kh * self.AM / (self.OM / (self.delta + 1.))
         return kh
 
-    def get_k1(self, t):
+    def get_k1(self, temp_ocean):
         """Calculate temperature dependent k_1
 
-        :param t: temperature (C)
-        :type t: float
+        :param temp_ocean: ocean temperature (C)
+        :type temp_ocean: float
         :return: k_1
         :rtype: float
         """
-        t += 283.15
+        t = 283.15 + temp_ocean
         pk1 = (
             -13.721 + 0.031334 * t + 3235.76 / t + 1.3e-5 * self.salinity * t -
             0.1031 * self.salinity ** 0.5)
         return 10 ** -pk1
 
-    def get_k2(self, t):
+    def get_k2(self, temp_ocean):
         """Calculate temperature dependent k_2
 
-        :param t: temperature (C)
-        :type t: float
+        :param temp_ocean: ocean temperature (C)
+        :type temp_ocean: float
         :return: k_2
         :rtype: float
         """
-        t += 283.15
+        t = 283.15 + temp_ocean
         pk2 = (
             5371.96 + 1.671221 * t + 0.22913 * self.salinity +
             18.3802 * np.log10(self.salinity)) - (128375.28 / t +
@@ -390,8 +415,13 @@ def main():
 
     def write_beam(output, csv=None):
         o = ''
-        for row in output:
-            o += ','.join([str(r) for r in row]) + '\n'
+        row_headers = ['mass_atmosphere', 'mass_upper', 'mass_lower',
+                       'temp_atmosphere', 'temp_ocean',] + \
+            ['phi{}{}'.format(i + 1, j + 1) for i in range(3) for j in range(3)]
+
+        for i in range(len(output)):
+            o += '{},'.format(row_headers[i])
+            o += ','.join([str(r) for r in output[i]]) + '\n'
         if csv is not None:
             with open(csv, 'w') as f:
                 f.write(o)
@@ -412,9 +442,11 @@ def main():
 
 
 if __name__ == '__main__':
-    # b = BEAMCarbon()
-    # b.time_step = 10.
-    # b.intervals = 20
-    # b.emissions = [10,13,1]
-    # print b.run()
-    main()
+    b = BEAMCarbon()
+    b.time_step = 10.
+    b.intervals = 100
+    b.emissions = [10,13,15.]
+    b.temperature_dependent = True
+    # b.linear_temperature = True
+    print b.run()
+    # main()
