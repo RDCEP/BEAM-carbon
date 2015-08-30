@@ -7,7 +7,7 @@ from setuptools import setup
  
 version = re.search(
     '^__version__\s*=\s*\'(.*)\'',
-    open('beam_carbon/beam_carbon.py').read(),
+    open('beam_carbon/beam.py').read(),
     re.M
     ).group(1)
  
@@ -19,7 +19,7 @@ setup(
     name='beam_carbon',
     packages=['beam_carbon'],
     entry_points={
-        'console_scripts': ['beam_carbon = beam_carbon.beam_carbon:main']
+        'console_scripts': ['beam_carbon = beam_carbon.beam:main']
     },
     license='GPLv3',
     version=version,
