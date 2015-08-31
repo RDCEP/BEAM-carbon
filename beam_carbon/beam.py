@@ -8,6 +8,9 @@ from sympy import symbols, solve, Eq
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
+__version__ = '0.1'
+
+
 class BEAMCarbon(object):
     """Class for computing BEAM carbon cycle from emissions input.
     """
@@ -416,19 +419,10 @@ def main():
         return beam.run()
 
     def write_beam(output, csv=None):
-        o = ''
-        row_headers = ['mass_atmosphere', 'mass_upper', 'mass_lower',
-                       'temp_atmosphere', 'temp_ocean',] + \
-            ['phi{}{}'.format(i + 1, j + 1) for i in range(3) for j in range(3)]
-
-        for i in range(len(output)):
-            o += '{},'.format(row_headers[i])
-            o += ','.join([str(r) for r in output[i]]) + '\n'
         if csv is not None:
-            with open(csv, 'w') as f:
-                f.write(o)
+            output.to_csv(csv)
         else:
-            print(o)
+            print(output.to_string())
         return True
 
     csv = args.output if args.output else None
