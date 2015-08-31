@@ -129,9 +129,7 @@ class DICETemperature(Temperature):
                 self.forcing(index, mass_atmosphere) - (
                     self.forcing_co2_doubling / self.temp_co2_doubling) *
                 temp_atmosphere - self.transfer_matrix[2] *
-                (temp_atmosphere - temp_ocean)
-            )
-        )
+                (temp_atmosphere - temp_ocean)))
 
 
 class LinearTemperature(Temperature):
