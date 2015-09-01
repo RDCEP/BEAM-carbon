@@ -403,7 +403,7 @@ def main():
             '-i', '--intervals', type=int, default=10,
             help='BEAM calculation intervals per time step. Default is 10.')
         parser.add_argument(
-            '-o', '--output', action='store_true', default=False,
+            '-o', '--output', type=str, default='beam_output.csv',
             help='Write values to CSV file instead of stdout')
 
         return parser.parse_args()
