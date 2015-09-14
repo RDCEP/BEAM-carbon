@@ -33,14 +33,14 @@ BEAM carbon can be run within python or in a command line.
     
 5. Several properties of the BEAMCarbon object can affect its output. You
    can use either a DICE-like or linear temperature model. For more detailed
-   [runs you can also turn off the temperature-dependent recalibration of k_{1},
-   k_{2} and k_{h}. 
+   [runs you can also turn off the temperature-dependent recalibration of 
+   `k_{1}`, `k_{2}` and `k_{h}`. 
    
 ### Command line
 
 * `beam_carbon -h` will acquaint you with the basic options.
-* Emissions can be specified as a comma-separated list or in a CSV file with no header 
-    row or column
+* Emissions can be specified as a comma-separated list or in a CSV file with 
+    no header row or column
     
     `beam_carbon -e 10,13,15`
     
