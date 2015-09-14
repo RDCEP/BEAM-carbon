@@ -1,9 +1,11 @@
 # BEAM Carbon
 
 ## Installation
+
 Typical `python setup.py install` should suffice.
   
 ## Usage
+
 BEAM carbon can be run within python or in a command line. 
 
 ### In python
@@ -51,3 +53,7 @@ BEAM carbon can be run within python or in a command line.
 * As in python, the emissions time step and BEAM interval can be specified
 
     `beam_carbon -e 10,13,15 --timestep 10 --interval 100`
+    
+## License
+
+This code is distributed under the Apache 2 License.
