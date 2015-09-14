@@ -39,7 +39,7 @@ BEAM carbon can be run within python or in a command line.
 ### Command line
 
 * `beam_carbon -h` will acquaint you with the basic options.
-* Emissions can be specified as a comme-separated list or in a CSV file with no header 
+* Emissions can be specified as a comma-separated list or in a CSV file with no header 
     row or column
     
     `beam_carbon -e 10,13,15`
