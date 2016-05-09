@@ -351,7 +351,7 @@ class BEAMCarbon(object):
             if i % self.intervals == 0 and self.temperature_dependent: # First interval in time step
                 self.temp_calibrate(temp_ocean)
 
-            h = self.get_H(carbon_mass[1])
+            h = self.get_H(carbon_mass[1], re_solve=False)
             self.B = self.get_B(h)
 
             if i % self.intervals == 0: # First interval in time step
@@ -369,8 +369,9 @@ class BEAMCarbon(object):
                 temp_ocean = self.temperature.temp_ocean(
                     ta, temp_ocean)
 
-            carbon_mass += ((self.transfer_matrix * carbon_mass + emissions) /
-                         self.intervals).sum(axis=1)
+            carbon_mass += (((self.transfer_matrix * carbon_mass) /
+                             self.intervals).sum(axis=1) +
+                            emissions / self.intervals)
 
             if (i + 1) % self.intervals == 0:
                 output.iloc[:, _i + 1] = (
