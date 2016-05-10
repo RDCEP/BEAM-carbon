@@ -353,6 +353,11 @@ class BEAMCarbon(object):
 
     def run(self):
         N = self.n * self.intervals
+        self.carbon_mass = self.initial_carbon.copy()
+        total_carbon = 0
+        emissions = np.zeros(3)
+        temp_atmosphere, temp_ocean = self.temperature.initial_temp
+
         output = np.tile(np.concatenate((
             self.initial_carbon,
             self.temperature.initial_temp,
@@ -367,10 +372,6 @@ class BEAMCarbon(object):
                    'cumulative', 'A', 'B'],
             columns=np.arange(self.n + 1) * self.time_step,
         )
-        carbon_mass = self.initial_carbon.copy()
-        total_carbon = 0
-        emissions = np.zeros(3)
-        temp_atmosphere, temp_ocean = self.temperature.initial_temp
 
         for i in xrange(N):
 
@@ -379,10 +380,17 @@ class BEAMCarbon(object):
             if i % self.intervals == 0 and self.temperature_dependent: # First interval in time step
                 self.temp_calibrate(temp_ocean)
 
-            h = self.get_H(carbon_mass[1], re_solve=False)
+            h = self.get_H(self.carbon_mass[1], re_solve=False)
             self.B = self.get_B(h)
 
-            if i % self.intervals == 0: # First interval in time step
+            emissions[0] = self.emissions[_i] * self.time_step / self.intervals
+            total_carbon += emissions[0]
+
+            self.carbon_mass += (
+                (self.transfer_matrix * self.carbon_mass
+                 / self.intervals).sum(axis=1) + emissions)
+
+            if (i + 1) % self.intervals == 0:
 
                 emissions[0] = self.emissions[_i] * self.time_step
                 total_carbon += emissions[0]
@@ -390,25 +398,21 @@ class BEAMCarbon(object):
                 ta = temp_atmosphere
                 temp_atmosphere = self.temperature.temp_atmosphere(
                     index=_i, temp_atmosphere=ta,
-                    temp_ocean=temp_ocean, mass_atmosphere=carbon_mass[0],
+                    temp_ocean=temp_ocean, mass_atmosphere=self.carbon_mass[0],
                     carbon=total_carbon, initial_carbon=self.initial_carbon,
                     phi11=self.transfer_matrix[0][0],
                     phi21=self.transfer_matrix[1][0])
                 temp_ocean = self.temperature.temp_ocean(
                     ta, temp_ocean)
 
-            carbon_mass += (((self.transfer_matrix * carbon_mass) /
-                             self.intervals).sum(axis=1) +
-                            emissions / self.intervals)
-
-            if (i + 1) % self.intervals == 0:
                 output.iloc[:, _i + 1] = (
-                    np.concatenate((carbon_mass.copy(),
+                    np.concatenate((self.carbon_mass.copy(),
                                     np.array([temp_atmosphere, temp_ocean]),
                                     np.array([self.transfer_matrix[0][1],
                                               self.transfer_matrix[1][1],
                                               total_carbon,
                                               self.A, self.B]))))
+
         return output
 
 
