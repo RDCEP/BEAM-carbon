@@ -8,7 +8,7 @@ from sympy import symbols, solve, Eq
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
-__version__ = '0.1'
+__version__ = '0.3'
 
 
 class BEAMCarbon(object):
@@ -18,11 +18,13 @@ class BEAMCarbon(object):
         """BEAMCarbon init
 
         Args:
-            :param emissions: Array of annual emissions in GtC, beginning in 2005
+            :param emissions: Array of annual emissions in GtC, beginning
+                in 2005
             :type emissions: list
             :param time_step: Time between emissions values in years
             :type time_step: float
-            :param intervals: Nuber of times to calculate BEAM carbon per timestep
+            :param intervals: Number of times to calculate BEAM carbon
+                per timestep
             :type intervals: int
         """
         self._temperature_dependent = True
@@ -149,7 +151,7 @@ class BEAMCarbon(object):
 
     @property
     def k_1(self):
-        """First dissacoiation constant.
+        """First dissociation constant.
         """
         if self._k_1 is None:
             self._k_1 = self.get_k1(self.temperature.initial_temp[1])
@@ -161,7 +163,7 @@ class BEAMCarbon(object):
 
     @property
     def k_2(self):
-        """Second dissacoiation constant.
+        """Second dissociation constant.
         """
         if self._k_2 is None:
             self._k_2 = self.get_k2(self.temperature.initial_temp[1])
@@ -228,7 +230,7 @@ class BEAMCarbon(object):
 
     @property
     def temperature_dependent(self):
-        """Switch for calculating temperature-dependent paramters k_1,
+        """Switch for calculating temperature-dependent parameters k_1,
         k_2, and k_h.
         """
         return self._temperature_dependent
@@ -240,9 +242,11 @@ class BEAMCarbon(object):
     @linear_temperature.setter
     def linear_temperature(self, value):
         if value:
-            self.temperature = LinearTemperature(self.time_step, self.intervals, self.n)
+            self.temperature = LinearTemperature(self.time_step,
+                                                 self.intervals, self.n)
         else:
-            self.temperature = DICETemperature(self.time_step, self.intervals, self.n)
+            self.temperature = DICETemperature(self.time_step,
+                                               self.intervals, self.n)
         self._linear_temperature = value
 
     @temperature_dependent.setter
@@ -364,7 +368,7 @@ class BEAMCarbon(object):
             np.array([
                 self.transfer_matrix[0][1], self.transfer_matrix[1][1]]),
             np.zeros(3),
-        )).reshape((10, 1)).copy(), self.n + 1)
+        )).reshape((10, 1)).copy(), (self.n + 1, ))
         output = pd.DataFrame(
             output,
             index=['mass_atmosphere', 'mass_upper', 'mass_lower',
@@ -377,7 +381,7 @@ class BEAMCarbon(object):
 
             _i = int(floor(i / self.intervals)) # time_step
 
-            if i % self.intervals == 0 and self.temperature_dependent: # First interval in time step
+            if i % self.intervals == 0 and self.temperature_dependent:
                 self.temp_calibrate(temp_ocean)
 
             h = self.get_H(self.carbon_mass[1], re_solve=False)
@@ -387,8 +391,9 @@ class BEAMCarbon(object):
             total_carbon += emissions[0]
 
             self.carbon_mass += (
-                (self.transfer_matrix * self.carbon_mass
-                 / self.intervals).sum(axis=1) + emissions)
+                (self.transfer_matrix *
+                 np.divide(self.carbon_mass, self.intervals)).sum(axis=1) +
+                emissions)
 
             if (i + 1) % self.intervals == 0:
 
