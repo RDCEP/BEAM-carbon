@@ -8,7 +8,7 @@ from sympy import symbols, solve, Eq
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 
 class BEAMCarbon(object):
