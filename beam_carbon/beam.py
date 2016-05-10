@@ -42,6 +42,7 @@ class BEAMCarbon(object):
         self._B = None
 
         self._initial_carbon = np.array([808.9, 725., 35641.])
+        self._carbon_mass = None
 
         self._linear_temperature = False
 
@@ -55,6 +56,16 @@ class BEAMCarbon(object):
     @initial_carbon.setter
     def initial_carbon(self, value):
         self._initial_carbon = value
+
+    @property
+    def carbon_mass(self):
+        if self._carbon_mass is None:
+            self._carbon_mass = self.initial_carbon.copy()
+        return self._carbon_mass
+
+    @carbon_mass.setter
+    def carbon_mass(self, value):
+        self._carbon_mass = value
 
     @property
     def transfer_matrix(self):
