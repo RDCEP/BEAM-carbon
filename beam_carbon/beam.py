@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
-from math import floor, sqrt
+from math import floor
 import numpy as np
 import pandas as pd
-from sympy import symbols, solve, Eq
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
@@ -314,6 +313,18 @@ class BEAMCarbon(object):
         self.A = kh * self.AM / (self.OM / (self.delta + 1.))
         return kh
 
+    def get_pk1(self, t):
+        return (
+            -13.721 + 0.031334 * t + 3235.76 / t + 1.3e-5 * self.salinity * t -
+            0.1031 * self.salinity ** 0.5)
+
+    def get_pk2(self, t):
+        return (
+            5371.96 + 1.671221 * t + 0.22913 * self.salinity +
+            18.3802 * np.log10(self.salinity)) - (128375.28 / t +
+            2194.30 * np.log10(t) + 8.0944e-4 * self.salinity * t +
+            5617.11 * np.log10(self.salinity) / t) + 2.136 * self.salinity / t
+
     def get_k1(self, temp_ocean):
         """Calculate temperature dependent k_1
 
@@ -322,11 +333,7 @@ class BEAMCarbon(object):
         :return: k_1
         :rtype: float
         """
-        t = 283.15 + temp_ocean
-        pk1 = (
-            -13.721 + 0.031334 * t + 3235.76 / t + 1.3e-5 * self.salinity * t -
-            0.1031 * self.salinity ** 0.5)
-        return 10 ** -pk1
+        return 10 ** -self.get_pk1(283.15 + temp_ocean)
 
     def get_k2(self, temp_ocean):
         """Calculate temperature dependent k_2
@@ -336,13 +343,7 @@ class BEAMCarbon(object):
         :return: k_2
         :rtype: float
         """
-        t = 283.15 + temp_ocean
-        pk2 = (
-            5371.96 + 1.671221 * t + 0.22913 * self.salinity +
-            18.3802 * np.log10(self.salinity)) - (128375.28 / t +
-            2194.30 * np.log10(t) + 8.0944e-4 * self.salinity * t +
-            5617.11 * np.log10(self.salinity) / t) + 2.136 * self.salinity / t
-        return 10 ** -pk2
+        return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
     def run(self):
         N = self.n * self.intervals
@@ -373,7 +374,7 @@ class BEAMCarbon(object):
             if i % self.intervals == 0 and self.temperature_dependent:
                 self.temp_calibrate(temp_ocean)
 
-            h = self.get_H(self.carbon_mass[1], re_solve=False)
+            h = self.get_H(self.carbon_mass[1])
             self.B = self.get_B(h)
 
             emissions[0] = self.emissions[_i] * self.time_step / self.intervals
