@@ -41,6 +41,8 @@ class BEAMCarbon(object):
         self._A = None
         self._B = None
 
+        self._initial_carbon = np.array([808.9, 725., 35641.])
+
         self._linear_temperature = False
 
     @property
@@ -48,7 +50,11 @@ class BEAMCarbon(object):
         """Values for initial carbon in atmosphere, upper and lower oceans
         in GtC. Default values are from 2005.
         """
-        return np.array([808.9, 725., 35641.])
+        return self._initial_carbon
+
+    @initial_carbon.setter
+    def initial_carbon(self, value):
+        self._initial_carbon = value
 
     @property
     def transfer_matrix(self):
