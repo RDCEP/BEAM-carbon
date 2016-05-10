@@ -40,6 +40,7 @@ class BEAMCarbon(object):
         self._k_h = 1.23e3
         self._A = None
         self._B = None
+        self._Alk = 767.
 
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
@@ -186,7 +187,11 @@ class BEAMCarbon(object):
     def Alk(self):
         """Alkalinity in GtC.
         """
-        return 767.
+        return self._Alk
+
+    @Alk.setter
+    def Alk(self, value):
+        self._Alk = value
 
     @property
     def A(self):
