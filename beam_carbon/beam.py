@@ -138,6 +138,8 @@ class BEAMCarbon(object):
     def k_h(self):
         """CO2 solubility.
         """
+        if self._k_h is None:
+            self._k_h = self.get_kh(0)
         return self._k_h
 
     @k_h.setter
@@ -148,6 +150,8 @@ class BEAMCarbon(object):
     def k_1(self):
         """First dissacoiation constant.
         """
+        if self._k_1 is None:
+            self._k_1 = self.get_k1(0)
         return self._k_1
 
     @k_1.setter
@@ -158,6 +162,8 @@ class BEAMCarbon(object):
     def k_2(self):
         """Second dissacoiation constant.
         """
+        if self._k_2 is None:
+            self._k_2 = self.get_k2(0)
         return self._k_2
 
     @k_2.setter
