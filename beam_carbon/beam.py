@@ -140,7 +140,7 @@ class BEAMCarbon(object):
         """CO2 solubility.
         """
         if self._k_h is None:
-            self._k_h = self.get_kh(0)
+            self._k_h = self.get_kh(self.temperature.initial_temp[1])
         return self._k_h
 
     @k_h.setter
@@ -152,7 +152,7 @@ class BEAMCarbon(object):
         """First dissacoiation constant.
         """
         if self._k_1 is None:
-            self._k_1 = self.get_k1(0)
+            self._k_1 = self.get_k1(self.temperature.initial_temp[1])
         return self._k_1
 
     @k_1.setter
@@ -164,7 +164,7 @@ class BEAMCarbon(object):
         """Second dissacoiation constant.
         """
         if self._k_2 is None:
-            self._k_2 = self.get_k2(0)
+            self._k_2 = self.get_k2(self.temperature.initial_temp[1])
         return self._k_2
 
     @k_2.setter
@@ -469,9 +469,16 @@ def main():
 if __name__ == '__main__':
     b = BEAMCarbon()
     b.time_step = 10.
-    b.intervals = 20
+    b.intervals = 200
     N = 100
-    b.emissions = np.concatenate((10. * np.exp(-np.arange(N) / 40), np.zeros(100-N)))
+    b.emissions = np.array([
+        # 7.10, 7.97,
+        9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
+    ])
+    # df = pd.DataFrame.from_csv('webDICE-CSV.csv', header=-1, index_col=0)
+    # b.emissions = np.array(df.ix['emissions_total', :])
+    # b.emissions = np.concatenate((10. * np.exp(-np.arange(N) / 40), np.zeros(100-N)))
     b.temperature_dependent = False
     b.linear_temperature = False
     r = b.run()
+    print(r)
