@@ -13,7 +13,7 @@ __version__ = '0.3'
 class BEAMCarbon(object):
     """Class for computing BEAM carbon cycle from emissions input.
     """
-    def __init__(self, emissions=None, time_step=1, intervals=10):
+    def __init__(self, emissions=None, time_step=1, intervals=100):
         """BEAMCarbon init
 
         Args:
@@ -32,7 +32,7 @@ class BEAMCarbon(object):
         self.temperature = DICETemperature(self.time_step, self.intervals, 0)
 
         if emissions is not None and type(emissions) in [list, np.ndarray]:
-            self.emissions = emissions
+            self.emissions = np.array(emissions)
         else:
             self.emissions = np.zeros(1)
 
@@ -52,6 +52,9 @@ class BEAMCarbon(object):
     def initial_carbon(self):
         """Values for initial carbon in atmosphere, upper and lower oceans
         in GtC. Default values are from 2005.
+
+        :return: Three layer carbon mass at timestep 0
+        :rtype: np.ndarray
         """
         return self._initial_carbon
 
@@ -61,6 +64,12 @@ class BEAMCarbon(object):
 
     @property
     def carbon_mass(self):
+        """Values for carbon in atmosphere, upper and lower oceans at each
+        timestep in GtC. Default values for time 0 are equal to initial_carbon.
+
+        :return: Three layer carbon mass
+        :rtype: np.ndarray
+        """
         if self._carbon_mass is None:
             self._carbon_mass = self.initial_carbon.copy()
         return self._carbon_mass
@@ -72,6 +81,9 @@ class BEAMCarbon(object):
     @property
     def transfer_matrix(self):
         """3 by 3 matrix of transfer coefficients for carbon cycle.
+
+        :return: Transfer matrix
+        :rtype: np.ndarray
         """
         return np.array([
             -self.k_a, self.k_a * self.A * self.B, 0,
@@ -82,7 +94,12 @@ class BEAMCarbon(object):
 
     @property
     def emissions(self):
-        """Array of emissions values in GtC per year.
+        """Array of annual emissions values in GtC per timestep. Note that
+        no matter what size the timesteps are, the emissions values should be
+        annual.
+
+        :return: Emissions values
+        :rtype: np.ndarray
         """
         return self._emissions
 
@@ -94,6 +111,9 @@ class BEAMCarbon(object):
     @property
     def time_step(self):
         """Size of time steps in emissions array.
+
+        :return: Size of timestep
+        :rtype: float
         """
         return self._time_step
 
@@ -104,6 +124,11 @@ class BEAMCarbon(object):
 
     @property
     def n(self):
+        """Number of timesteps.
+
+        :return: Number of timesteps
+        :rtype: int
+        """
         return len(self.emissions)
 
     @property
@@ -119,26 +144,37 @@ class BEAMCarbon(object):
 
     @property
     def k_a(self):
-        """Time constant k_{a} (used for building transfer matrix).
+        """Constant k_{a}
+
+        :return: k_{a}
+        :rtype: float
         """
         return .2
 
     @property
     def k_d(self):
-        """Time constant k_{d} (used for building transfer matrix).
+        """Constant k_{d}
+
+        :return: k_{d}
+        :rtype: float
         """
         return .05
 
     @property
     def delta(self):
-        """Ratio of lower ocean to upper ocean (used for building transfer
-        matrix).
+        """Ratio of lower ocean to upper ocean.
+
+        :return: Ratio
+        :rtype: float
         """
         return 50.
 
     @property
     def k_h(self):
         """CO2 solubility.
+
+        :return: k_{h}
+        :rtype: float
         """
         if self._k_h is None:
             self._k_h = self.get_kh(self.temperature.initial_temp[1])
@@ -151,6 +187,9 @@ class BEAMCarbon(object):
     @property
     def k_1(self):
         """First dissociation constant.
+
+        :return: k_{1}
+        :rtype: float
         """
         if self._k_1 is None:
             self._k_1 = self.get_k1(self.temperature.initial_temp[1])
@@ -163,6 +202,9 @@ class BEAMCarbon(object):
     @property
     def k_2(self):
         """Second dissociation constant.
+
+        :return: k_{2}
+        :rtype: float
         """
         if self._k_2 is None:
             self._k_2 = self.get_k2(self.temperature.initial_temp[1])
@@ -175,18 +217,27 @@ class BEAMCarbon(object):
     @property
     def AM(self):
         """Moles in the atmosphere.
+
+        :return: AM
+        :rtype: float
         """
         return 1.77e20
 
     @property
     def OM(self):
         """Moles in the ocean.
+
+        :return: OM
+        :rtype: float
         """
         return 7.8e22
 
     @property
     def Alk(self):
         """Alkalinity in GtC.
+
+        :return: Alkalinity
+        :rtype: float
         """
         return self._Alk
 
@@ -197,6 +248,9 @@ class BEAMCarbon(object):
     @property
     def A(self):
         """Ratio of mass of CO2 in atmospheric to upper ocean dissolved CO2.
+
+        :return: A
+        :rtype: float
         """
         if self._A is None:
             if self.temperature_dependent:
@@ -211,6 +265,9 @@ class BEAMCarbon(object):
     @property
     def B(self):
         """Ratio of dissolved CO2 to total oceanic carbon.
+
+        :return: B
+        :rtype: float
         """
         if self._B is None:
             self.temp_calibrate(self.temperature.initial_temp[1])
@@ -224,19 +281,38 @@ class BEAMCarbon(object):
     @property
     def salinity(self):
         """Salinity in g / kg of seawater.
+
+        :return: Salinity
+        :rtype: float
         """
         return 35.
 
     @property
     def temperature_dependent(self):
-        """Switch for calculating temperature-dependent parameters k_1,
-        k_2, and k_h.
+        """Switch for calculating temperature-dependent parameters k_{1},
+        k_{2}, and k_{h}.
+
+        :return: Temperature dependence state
+        :rtype: bool
         """
         return self._temperature_dependent
 
     @property
     def linear_temperature(self):
+        """Switch for calculating linear temperature rather than DICE.
+
+        :return: Linear temperature state
+        :rtype: bool
+        """
         return self._linear_temperature
+
+    @temperature_dependent.setter
+    def temperature_dependent(self, value):
+        if type(value) is bool:
+            self._temperature_dependent = value
+        else:
+            raise TypeError(
+                'BEAMCarbon.temperature_dependent must be True or False.')
 
     @linear_temperature.setter
     def linear_temperature(self, value):
@@ -248,15 +324,13 @@ class BEAMCarbon(object):
                                                self.intervals, self.n)
         self._linear_temperature = value
 
-    @temperature_dependent.setter
-    def temperature_dependent(self, value):
-        if type(value) is bool:
-            self._temperature_dependent = value
-        else:
-            raise TypeError('BEAMCarbon.temperature_dependent must be True or False.')
-
     def temp_calibrate(self, to):
-        """Recalibrate temperature-dependent parameters k_1, k_2, and k_h.
+        """Recalibrate temperature-dependent parameters k_{1}, k_{2}, and k_{h}.
+
+        :param to: ocean temperature (C)
+        :type to: float
+        :return: None
+        :rtype: None
         """
         self.k_1 = self.get_k1(to)
         self.k_2 = self.get_k2(to)
@@ -275,7 +349,7 @@ class BEAMCarbon(object):
         return 1 / (1 + self.k_1 / h + self.k_1 * self.k_2 / h ** 2)
 
     def get_A(self):
-        """Calculate A based on temperature-dependent changes in k_h
+        """Calculate A based on temperature-dependent changes in k_{h}
 
         :return: A
         :rtype: float
@@ -283,10 +357,10 @@ class BEAMCarbon(object):
         return self.k_h * self.AM / (self.OM / (self.delta + 1))
 
     def get_H(self, mass_upper):
-        """Solve for H+, the concentration of hydrogen ions
+        """Solve for [H+], the concentration of hydrogen ions
         (the (pH) of seawater).
 
-        :param mass_upper: Carbon mass in ocenas in GtC
+        :param mass_upper: Carbon mass in oceans in GtC
         :type mass_upper: float
         :return: H
         :rtype: float
@@ -297,9 +371,9 @@ class BEAMCarbon(object):
         return max(np.roots([p0, p1, p2]))
 
     def get_kh(self, temp_ocean):
-        """Calculate temperature dependent k_h
+        """Calculate temperature dependent k_{h}
 
-        :param temp_ocean: ocean temperature (C)
+        :param temp_ocean: change in upper ocean temperature (C)
         :type temp_ocean: float
         :return: k_h
         :rtype: float
@@ -314,11 +388,27 @@ class BEAMCarbon(object):
         return kh
 
     def get_pk1(self, t):
+        """Calculate pk1, exponent of k_{1}.
+         k_{1} = 10 ** -pk1
+
+        :param t: change in upper ocean temperature (C)
+        :type t: float
+        :return: pk1
+        :rtype: float
+        """
         return (
             -13.721 + 0.031334 * t + 3235.76 / t + 1.3e-5 * self.salinity * t -
             0.1031 * self.salinity ** 0.5)
 
     def get_pk2(self, t):
+        """Calculate pk1, exponent of k_{1}.
+        k_{2} = 10 ** -pk2
+
+        :param t: change in upper ocean temperature (C)
+        :type t: float
+        :return: pk2
+        :rtype: float
+        """
         return (
             5371.96 + 1.671221 * t + 0.22913 * self.salinity +
             18.3802 * np.log10(self.salinity)) - (128375.28 / t +
@@ -326,26 +416,31 @@ class BEAMCarbon(object):
             5617.11 * np.log10(self.salinity) / t) + 2.136 * self.salinity / t
 
     def get_k1(self, temp_ocean):
-        """Calculate temperature dependent k_1
+        """Calculate temperature dependent k_{1}
 
-        :param temp_ocean: ocean temperature (C)
+        :param temp_ocean: change in upper ocean temperature (C)
         :type temp_ocean: float
-        :return: k_1
+        :return: k_{1}
         :rtype: float
         """
         return 10 ** -self.get_pk1(283.15 + temp_ocean)
 
     def get_k2(self, temp_ocean):
-        """Calculate temperature dependent k_2
+        """Calculate temperature dependent k_{2}
 
-        :param temp_ocean: ocean temperature (C)
+        :param temp_ocean: change in upper ocean temperature (C)
         :type temp_ocean: float
-        :return: k_2
+        :return: k_{2}
         :rtype: float
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
     def run(self):
+        """Run the BEAM model.
+
+        :return: DataFrame of values over the entire run
+        :rtype: pd.DataFrame
+        """
         N = self.n * self.intervals
         self.carbon_mass = self.initial_carbon.copy()
         total_carbon = 0
@@ -415,12 +510,12 @@ def main():
     def create_args():
         import argparse
         parser = argparse.ArgumentParser(
-            description='TKTK.'
+            description='BEAM carbon cycle on the command line.'
         )
         input_group = parser.add_mutually_exclusive_group()
         input_group.add_argument(
             '-e', '--emissions', type=str,
-            help='Comma separated values to use as emissions input.')
+            help='Comma separated values of annual emissions.')
         input_group.add_argument(
             '-c', '--input', '--csv', type=str,
             help='Path to CSV file to use as input.')
@@ -429,10 +524,14 @@ def main():
             help='Time step for input values in years. Default is 1.')
         parser.add_argument(
             '-i', '--intervals', type=int, default=10,
-            help='BEAM calculation intervals per time step. Default is 10.')
+            help='BEAM calculation intervals per time step. Default is 100.')
         parser.add_argument(
             '-o', '--output', type=str, default='beam_output.csv',
             help='Write values to CSV file instead of stdout')
+        parser.add_argument(
+            '-T', '--tempdependent', type=bool, default=False,
+            help='Recalibrate k_h, k_1, and k_2 based on temperature of '
+                 'upper ocean at each interval.')
 
         return parser.parse_args()
 
@@ -444,6 +543,8 @@ def main():
             beam.time_step = args.timestep
         if args.intervals:
             beam.intervals = args.intervals
+        if args.tempdependent:
+            beam.temperature_dependent = True
         return beam.run()
 
     def write_beam(output, csv=None):
