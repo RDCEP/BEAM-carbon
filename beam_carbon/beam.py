@@ -32,9 +32,9 @@ class BEAMCarbon(object):
         self.temperature = DICETemperature(self.time_step, self.intervals, 0)
 
         if emissions is not None and type(emissions) in [list, np.ndarray]:
-            self.emissions = np.array(emissions)
+            self._emissions = np.array(emissions)
         else:
-            self.emissions = np.zeros(1)
+            self._emissions = np.zeros(1)
 
         self._k_1 = 8e-7
         self._k_2 = 4.53e-10
@@ -60,6 +60,23 @@ class BEAMCarbon(object):
 
     @initial_carbon.setter
     def initial_carbon(self, value):
+
+        value = np.array(value, dtype=np.float)
+
+        if len(value) != 3:
+            raise ValueError(
+                'BEAMCarbon.initial_carbon must have three values.')
+
+        if np.any(np.isnan(value)):
+            raise TypeError(
+                'BEAMCarbon.initial_carbon must have three non-negative '
+                'values.')
+
+        if len(np.where(value < 0)[0]) > 0:
+            raise TypeError(
+                'BEAMCarbon.initial_carbon must have three non-negative '
+                'values.')
+
         self._initial_carbon = value
 
     @property
@@ -76,7 +93,7 @@ class BEAMCarbon(object):
 
     @carbon_mass.setter
     def carbon_mass(self, value):
-        self._carbon_mass = value
+        self._carbon_mass = np.array(value, dtype=np.float)
 
     @property
     def transfer_matrix(self):
@@ -105,6 +122,18 @@ class BEAMCarbon(object):
 
     @emissions.setter
     def emissions(self, value):
+        value = np.array(value, dtype=np.float)
+
+        if np.any(np.isnan(value)):
+            raise TypeError(
+                'BEAMCarbon.emissions must contain non-negative numeric '
+                'values.')
+
+        if len(np.where(value < 0)[0]) > 0:
+            raise TypeError(
+                'BEAMCarbon.carbon_mass must contain non-negative numeric '
+                'values.')
+
         self._emissions = value
         self.temperature.n = self.n
 
@@ -119,6 +148,9 @@ class BEAMCarbon(object):
 
     @time_step.setter
     def time_step(self, value):
+        if type(value) not in [float, int] or value <= 0:
+            raise TypeError(
+                'BEAMCarbon.time_step must be a positive numeric value.')
         self._time_step = value
         self.temperature.time_step = self.time_step
 
@@ -139,6 +171,10 @@ class BEAMCarbon(object):
 
     @intervals.setter
     def intervals(self, value):
+        if type(value) not in [int] or value <= 0:
+            raise TypeError(
+                'BEAMCarbon.intervals must be a positive integer value.')
+
         self._intervals = value
         self.temperature.periods = self.intervals
 
@@ -569,15 +605,11 @@ def main():
 if __name__ == '__main__':
     b = BEAMCarbon()
     b.time_step = 10.
-    b.intervals = 200
+    b.intervals = 2000
     N = 100
     b.emissions = np.array([
-        # 7.10, 7.97,
         9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
     ])
-    # df = pd.DataFrame.from_csv('webDICE-CSV.csv', header=-1, index_col=0)
-    # b.emissions = np.array(df.ix['emissions_total', :])
-    # b.emissions = np.concatenate((10. * np.exp(-np.arange(N) / 40), np.zeros(100-N)))
     b.temperature_dependent = False
     b.linear_temperature = False
     r = b.run()
