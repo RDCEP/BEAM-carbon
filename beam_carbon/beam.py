@@ -283,7 +283,7 @@ class BEAMCarbon(object):
         """
         return self.k_h * self.AM / (self.OM / (self.delta + 1))
 
-    def get_H(self, mass_upper, re_solve=False):
+    def get_H(self, mass_upper):
         """Solve for H+, the concentration of hydrogen ions
         (the (pH) of seawater).
 
@@ -292,21 +292,10 @@ class BEAMCarbon(object):
         :return: H
         :rtype: float
         """
-        if re_solve:
-            h = symbols('h')
-            a = mass_upper / self.Alk
-            f = Eq(
-                (h**2 + self.k_1 * h + self.k_1 * self.k_2) / self.k_1,
-                a * (h + 2 * self.k_2)
-            )
-            return max(solve(f, h))
-        return (
-            -self.k_1 * (self.Alk - mass_upper) / (2 * self.Alk) +
-             sqrt(self.k_1 * (self.Alk ** 2 * self.k_1 -
-                              4 * self.Alk ** 2 * self.k_2 -
-                              2 * self.Alk * self.k_1 * mass_upper +
-                              8 * self.Alk * self.k_2 * mass_upper +
-                              self.k_1 * mass_upper ** 2)) / (2 * self.Alk))
+        p0 = 1
+        p1 = (self.k_1 - mass_upper * self.k_1 / self.Alk)
+        p2 = (1 - 2 * mass_upper / self.Alk) * self.k_1 * self.k_2
+        return max(np.roots([p0, p1, p2]))
 
     def get_kh(self, temp_ocean):
         """Calculate temperature dependent k_h
