@@ -126,13 +126,7 @@ class BEAMCarbon(object):
 
         if np.any(np.isnan(value)):
             raise TypeError(
-                'BEAMCarbon.emissions must contain non-negative numeric '
-                'values.')
-
-        if len(np.where(value < 0)[0]) > 0:
-            raise TypeError(
-                'BEAMCarbon.carbon_mass must contain non-negative numeric '
-                'values.')
+                'BEAMCarbon.emissions must contain numeric values.')
 
         self._emissions = value
         self.temperature.n = self.n
