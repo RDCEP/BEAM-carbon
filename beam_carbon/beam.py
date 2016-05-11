@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
+from collections import OrderedDict
 from math import floor
 import numpy as np
 import pandas as pd
+from beam_carbon.config import OUTPUT
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
@@ -29,7 +31,9 @@ class BEAMCarbon(object):
         self._temperature_dependent = True
         self._intervals = intervals
         self._time_step = time_step
-        self.temperature = DICETemperature(self.time_step, self.intervals, 0)
+        self.temperature_mod = DICETemperature(self.time_step, self.intervals, 0)
+        self._temperature = self.temperature_mod.initial_temp.copy()
+        self.total_emissions = 0
 
         if emissions is not None and type(emissions) in [list, np.ndarray]:
             self._emissions = np.array(emissions)
@@ -96,6 +100,24 @@ class BEAMCarbon(object):
         self._carbon_mass = np.array(value, dtype=np.float)
 
     @property
+    def temperature(self):
+        return self._temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        value = np.array(value, dtype=np.float)
+
+        if len(value) != 2:
+            raise ValueError(
+                'BEAMCarbon.temperature must have two numeric values.')
+
+        if np.any(np.isnan(value)):
+            raise TypeError(
+                'BEAMCarbon.temperature must have two numeric values.')
+
+        self._temperature = value
+
+    @property
     def transfer_matrix(self):
         """3 by 3 matrix of transfer coefficients for carbon cycle.
 
@@ -129,7 +151,7 @@ class BEAMCarbon(object):
                 'BEAMCarbon.emissions must contain numeric values.')
 
         self._emissions = value
-        self.temperature.n = self.n
+        self.temperature_mod.n = self.n
 
     @property
     def time_step(self):
@@ -146,7 +168,7 @@ class BEAMCarbon(object):
             raise TypeError(
                 'BEAMCarbon.time_step must be a positive numeric value.')
         self._time_step = value
-        self.temperature.time_step = self.time_step
+        self.temperature_mod.time_step = self.time_step
 
     @property
     def n(self):
@@ -170,7 +192,7 @@ class BEAMCarbon(object):
                 'BEAMCarbon.intervals must be a positive integer value.')
 
         self._intervals = value
-        self.temperature.periods = self.intervals
+        self.temperature_mod.periods = self.intervals
 
     @property
     def k_a(self):
@@ -207,7 +229,7 @@ class BEAMCarbon(object):
         :rtype: float
         """
         if self._k_h is None:
-            self._k_h = self.get_kh(self.temperature.initial_temp[1])
+            self._k_h = self.get_kh(self.temperature_mod.initial_temp[1])
         return self._k_h
 
     @k_h.setter
@@ -222,7 +244,7 @@ class BEAMCarbon(object):
         :rtype: float
         """
         if self._k_1 is None:
-            self._k_1 = self.get_k1(self.temperature.initial_temp[1])
+            self._k_1 = self.get_k1(self.temperature_mod.initial_temp[1])
         return self._k_1
 
     @k_1.setter
@@ -237,7 +259,7 @@ class BEAMCarbon(object):
         :rtype: float
         """
         if self._k_2 is None:
-            self._k_2 = self.get_k2(self.temperature.initial_temp[1])
+            self._k_2 = self.get_k2(self.temperature_mod.initial_temp[1])
         return self._k_2
 
     @k_2.setter
@@ -284,7 +306,7 @@ class BEAMCarbon(object):
         """
         if self._A is None:
             if self.temperature_dependent:
-                self.k_h = self.get_kh(self.temperature.initial_temp[1])
+                self.k_h = self.get_kh(self.temperature_mod.initial_temp[1])
             self._A = self.get_A()
         return self._A
 
@@ -300,7 +322,7 @@ class BEAMCarbon(object):
         :rtype: float
         """
         if self._B is None:
-            self.temp_calibrate(self.temperature.initial_temp[1])
+            self.temp_calibrate(self.temperature_mod.initial_temp[1])
             self._B = self.get_B(self.get_H(self.initial_carbon[1]))
         return self._B
 
@@ -347,11 +369,11 @@ class BEAMCarbon(object):
     @linear_temperature.setter
     def linear_temperature(self, value):
         if value:
-            self.temperature = LinearTemperature(self.time_step,
-                                                 self.intervals, self.n)
+            self.temperature_mod = LinearTemperature(self.time_step,
+                                                     self.intervals, self.n)
         else:
-            self.temperature = DICETemperature(self.time_step,
-                                               self.intervals, self.n)
+            self.temperature_mod = DICETemperature(self.time_step,
+                                                   self.intervals, self.n)
         self._linear_temperature = value
 
     def temp_calibrate(self, to):
@@ -465,6 +487,51 @@ class BEAMCarbon(object):
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
+    def add_output(self, i=None, output=None):
+
+        darr = OrderedDict([
+            ('mass_atmosphere', self.carbon_mass[0]),
+            ('mass_upper', self.carbon_mass[1]),
+            ('mass_lower', self.carbon_mass[2]),
+            ('temp_atmosphere', self.temperature[0]),
+            ('temp_ocean', self.temperature[1]),
+            ('cumulative_emissions', self.total_emissions),
+            ('phi11', self.transfer_matrix[0][0]),
+            ('phi12', self.transfer_matrix[0][1]),
+            ('phi13', self.transfer_matrix[0][2]),
+            ('phi21', self.transfer_matrix[1][0]),
+            ('phi22', self.transfer_matrix[1][1]),
+            ('phi23', self.transfer_matrix[1][2]),
+            ('phi31', self.transfer_matrix[2][0]),
+            ('phi32', self.transfer_matrix[2][1]),
+            ('phi33', self.transfer_matrix[2][2]),
+            ('A', self.A),
+            ('B', self.B),
+            ('k_1', self.k_1),
+            ('k_2', self.k_2),
+            ('k_h', self.k_h),
+        ])
+
+        arr = []
+        idx = []
+
+        for k, v in darr.iteritems():
+            if k in OUTPUT and i is None:
+                idx.append(k)
+                arr.append(v)
+            elif k in OUTPUT:
+                arr.append(v)
+
+        if output is None or i is None:
+            return pd.DataFrame(
+                np.tile(np.array(arr).reshape((len(arr), 1)), (self.n + 1,)),
+                index=idx,
+                columns=np.arange(self.n + 1) * self.time_step,)
+
+        output.iloc[:, i] = np.array(arr)
+
+        return output
+
     def run(self):
         """Run the BEAM model.
 
@@ -473,37 +540,21 @@ class BEAMCarbon(object):
         """
         N = self.n * self.intervals
         self.carbon_mass = self.initial_carbon.copy()
-        total_carbon = 0
         emissions = np.zeros(3)
-        temp_atmosphere, temp_ocean = self.temperature.initial_temp
-
-        output = np.tile(np.concatenate((
-            self.initial_carbon,
-            self.temperature.initial_temp,
-            np.array([
-                self.transfer_matrix[0][1], self.transfer_matrix[1][1]]),
-            np.zeros(3),
-        )).reshape((10, 1)).copy(), (self.n + 1, ))
-        output = pd.DataFrame(
-            output,
-            index=['mass_atmosphere', 'mass_upper', 'mass_lower',
-                   'temp_atmosphere', 'temp_ocean', 'phi12', 'phi22',
-                   'cumulative', 'A', 'B'],
-            columns=np.arange(self.n + 1) * self.time_step,
-        )
+        output = self.add_output()
 
         for i in xrange(N):
 
             _i = int(floor(i / self.intervals)) # time_step
 
             if i % self.intervals == 0 and self.temperature_dependent:
-                self.temp_calibrate(temp_ocean)
+                self.temp_calibrate(self.temperature[1])
 
             h = self.get_H(self.carbon_mass[1])
             self.B = self.get_B(h)
 
             emissions[0] = self.emissions[_i] * self.time_step / self.intervals
-            total_carbon += emissions[0]
+            self.total_emissions += emissions[0]
 
             self.carbon_mass += (
                 (self.transfer_matrix *
@@ -512,26 +563,19 @@ class BEAMCarbon(object):
 
             if (i + 1) % self.intervals == 0:
 
-                emissions[0] = self.emissions[_i] * self.time_step
-                total_carbon += emissions[0]
-
-                ta = temp_atmosphere
-                temp_atmosphere = self.temperature.temp_atmosphere(
+                ta = self.temperature[0]
+                self.temperature[0] = self.temperature_mod.temp_atmosphere(
                     index=_i, temp_atmosphere=ta,
-                    temp_ocean=temp_ocean, mass_atmosphere=self.carbon_mass[0],
-                    carbon=total_carbon, initial_carbon=self.initial_carbon,
+                    temp_ocean=self.temperature[1],
+                    mass_atmosphere=self.carbon_mass[0],
+                    carbon=self.total_emissions,
+                    initial_carbon=self.initial_carbon,
                     phi11=self.transfer_matrix[0][0],
                     phi21=self.transfer_matrix[1][0])
-                temp_ocean = self.temperature.temp_ocean(
-                    ta, temp_ocean)
+                self.temperature[1] = self.temperature_mod.temp_ocean(
+                    ta, self.temperature[1])
 
-                output.iloc[:, _i + 1] = (
-                    np.concatenate((self.carbon_mass.copy(),
-                                    np.array([temp_atmosphere, temp_ocean]),
-                                    np.array([self.transfer_matrix[0][1],
-                                              self.transfer_matrix[1][1],
-                                              total_carbon,
-                                              self.A, self.B]))))
+                output = self.add_output(_i+1, output)
 
         return output
 
