@@ -5,7 +5,7 @@ from collections import OrderedDict
 from math import floor
 import numpy as np
 import pandas as pd
-from beam_carbon.config import OUTPUT
+from config import OUTPUT
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
