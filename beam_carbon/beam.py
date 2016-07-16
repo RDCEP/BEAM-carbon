@@ -381,14 +381,11 @@ class BEAMCarbon(object):
             total_carbon += emissions[0]
 
             self.carbon_mass += (
-                (self.transfer_matrix *
-                 np.divide(self.carbon_mass, self.intervals)).sum(axis=1) +
+                np.multiply((self.transfer_matrix * self.carbon_mass),
+                            self.time_step / self.intervals).sum(axis=1) +
                 emissions)
 
             if (i + 1) % self.intervals == 0:
-
-                emissions[0] = self.emissions[_i] * self.time_step
-                total_carbon += emissions[0]
 
                 ta = temp_atmosphere
                 temp_atmosphere = self.temperature.temp_atmosphere(
@@ -407,6 +404,10 @@ class BEAMCarbon(object):
                                               self.transfer_matrix[1][1],
                                               total_carbon,
                                               self.A, self.B]))))
+
+        self.A = None
+        self.B = None
+        self.carbon_mass = None
 
         return output
 
@@ -466,17 +467,15 @@ def main():
 
 
 if __name__ == '__main__':
+    """The following is meant merely as an example of running BEAM in
+    a python shell.
+    """
     b = BEAMCarbon()
     b.time_step = 10.
     b.intervals = 200
-    N = 100
     b.emissions = np.array([
-        # 7.10, 7.97,
         9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
     ])
-    # df = pd.DataFrame.from_csv('webDICE-CSV.csv', header=-1, index_col=0)
-    # b.emissions = np.array(df.ix['emissions_total', :])
-    # b.emissions = np.concatenate((10. * np.exp(-np.arange(N) / 40), np.zeros(100-N)))
     b.temperature_dependent = False
     b.linear_temperature = False
     r = b.run()
