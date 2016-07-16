@@ -39,10 +39,11 @@ class BEAMCarbon(object):
         self._k_1 = 8e-7
         self._k_2 = 4.53e-10
         self._k_h = 1.23e3
+        self._k_d = .05
         self._A = None
         self._B = None
         self._Alk = 767.
-
+        self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
 
@@ -127,14 +128,25 @@ class BEAMCarbon(object):
     def k_d(self):
         """Time constant k_{d} (used for building transfer matrix).
         """
-        return .05
+        return self._k_d
+
+    @k_d.setter
+    def k_d(self, value):
+        self._k_d = value
 
     @property
     def delta(self):
         """Ratio of lower ocean to upper ocean (used for building transfer
         matrix).
         """
-        return 50.
+        return self._delta
+
+    @delta.setter
+    def delta(self, value):
+        self.initial_carbon[1] = 725 * 51 / (value + 1)
+        self.initial_carbon[2] = 36366 - self.initial_carbon[1]
+        self.Alk = 767 * 51 / (value + 1)
+        self._delta = value
 
     @property
     def k_h(self):
