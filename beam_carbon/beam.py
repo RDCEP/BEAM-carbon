@@ -557,8 +557,8 @@ class BEAMCarbon(object):
             self.total_emissions += emissions[0]
 
             self.carbon_mass += (
-                (self.transfer_matrix *
-                 np.divide(self.carbon_mass, self.intervals)).sum(axis=1) +
+                np.multiply((self.transfer_matrix * self.carbon_mass),
+                            self.time_step / self.intervals).sum(axis=1) +
                 emissions)
 
             if (i + 1) % self.intervals == 0:
@@ -576,6 +576,10 @@ class BEAMCarbon(object):
                     ta, self.temperature[1])
 
                 output = self.add_output(_i+1, output)
+
+        self.A = None
+        self.B = None
+        self.carbon_mass = None
 
         return output
 
@@ -641,10 +645,12 @@ def main():
 
 
 if __name__ == '__main__':
+    """The following is meant merely as an example of running BEAM in
+    a python shell.
+    """
     b = BEAMCarbon()
     b.time_step = 10.
-    b.intervals = 2000
-    N = 100
+    b.intervals = 200
     b.emissions = np.array([
         9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
     ])
