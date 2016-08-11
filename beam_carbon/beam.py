@@ -55,7 +55,7 @@ class BEAMCarbon(object):
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
         self._linear_temperature = False
-        self.csv = os.path.join('..', 'test', '{}.csv'.format(
+        self.csv = os.path.join('..', 'output', '{}.csv'.format(
             datetime.now().strftime('%Y%m%d%H%M%S')))
         self.log_all_output = False
 
@@ -707,7 +707,8 @@ if __name__ == '__main__':
     b.time_step = 1.                        # 1 year times steps.
     b.intervals = 24                        # Run BEAM 24 times each time step.
     a2 = pd.DataFrame.from_csv(             # Load emissions input from CSV.
-        '../src/a2.csv', index_col=1)
+        os.path.join(
+            '..', 'input', 'a2.csv', index_col=1))
     a2.fillna(0)
     b.emissions = np.array(                 # Set emissions property with array
         a2.ix[:, 'emissions'])              # from CSV.
