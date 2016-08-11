@@ -712,7 +712,8 @@ if __name__ == '__main__':
     a2.fillna(0)
     b.emissions = np.array(                 # Set emissions property with array
         a2.ix[:, 'emissions'])              # from CSV.
+    b.delta = 5                             # Change the default delta.
+    b.k_d = .002                            # Change the default k_{d}.
     b.temperature_dependent = False         # Don't recalculate k_{h}.
     b.linear_temperature = False            # Use DICE temperature model.
-    print(b.run())                          # Run the model and print the
-    #                                       # output.
+    print(b.run())                          # Run the model & print the output.
