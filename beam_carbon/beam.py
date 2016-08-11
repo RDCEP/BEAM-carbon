@@ -361,6 +361,14 @@ class BEAMCarbon(object):
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
+    def land_sink(self, carbon_mass, i):
+        annual_sink = 2.5
+        years_of_sink = 300
+        return carbon_mass - (
+            annual_sink * self.time_step / self.intervals) * (
+            (years_of_sink * self.intervals - self.time_step * self.intervals) /
+            (years_of_sink * self.intervals))
+
     def log(self, temp_atmosphere, temp_ocean, total_carbon, h, i):
         if i == 0:
             with open(self.csv, 'w') as f:
@@ -414,7 +422,7 @@ class BEAMCarbon(object):
                 np.multiply((self.transfer_matrix * self.carbon_mass),
                             self.time_step / self.intervals).sum(axis=1) +
                 emissions)
-            self.carbon_mass[0] -= max(0, np.sum(2.5 - 2.5 * (np.arange(i, (i+1)) / 300.))) / self.intervals
+            self.carbon_mass[0] = self.land_sink(self.carbon_mass[0], i)
 
             if (i + 1) % self.intervals == 0:
 
