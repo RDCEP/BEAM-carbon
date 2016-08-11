@@ -552,10 +552,16 @@ class BEAMCarbon(object):
                 arr.append(v)
 
         if output is None or i is None:
+            if self.log_all_output:
+                n = self.n * self.intervals + 1
+                cols = np.arange(self.n * self.intervals + 1) / self.intervals
+            else:
+                n = self.n + 1
+                cols = np.arange(self.n + 1) * self.time_step
             return pd.DataFrame(
-                np.tile(np.array(arr).reshape((len(arr), 1)), (self.n + 1,)),
+                np.tile(np.array(arr).reshape((len(arr), 1)), (n, )),
                 index=idx,
-                columns=np.arange(self.n + 1) * self.time_step,)
+                columns=cols,)
 
         output.iloc[:, i] = np.array(arr)
 
@@ -568,20 +574,6 @@ class BEAMCarbon(object):
             annual_sink * self.time_step / self.intervals) * (
             (years_of_sink * self.intervals - self.time_step * self.intervals) /
             (years_of_sink * self.intervals))
-
-    def log(self, temp_atmosphere, temp_ocean, total_carbon, h, i):
-        if i == 0:
-            with open(self.csv, 'w') as f:
-                f.write('Ma,Mu,Ml,Ta,To,ka*A*B,TC,A,B,kh,H,pH\n')
-        with open(self.csv, 'a') as f:
-            f.write('{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
-                *np.concatenate((
-                    (self.carbon_mass.copy() - self.initial_carbon) / 2.13,
-                    np.array([temp_atmosphere, temp_ocean]),
-                    np.array([self.transfer_matrix[0][1],
-                              total_carbon,
-                              self.A, self.B, self.k_h, h,
-                              -np.log10(h)]))).tolist()))
 
     def run(self):
         """Run the BEAM model.
@@ -629,10 +621,17 @@ class BEAMCarbon(object):
 
                 output = self.add_output(_i+1, output)
 
+            else:
+                if self.log_all_output:
+                    output = self.add_output(i, output)
+
         self.A = None
         self.B = None
         self.H = None
         self.carbon_mass = None
+
+        if self.log_all_output:
+            output.to_csv(self.csv)
 
         return output
 
@@ -708,7 +707,7 @@ if __name__ == '__main__':
     b.intervals = 24                        # Run BEAM 24 times each time step.
     a2 = pd.DataFrame.from_csv(             # Load emissions input from CSV.
         os.path.join(
-            '..', 'input', 'a2.csv', index_col=1))
+            '..', 'input', 'a2.csv'), index_col=1)
     a2.fillna(0)
     b.emissions = np.array(                 # Set emissions property with array
         a2.ix[:, 'emissions'])              # from CSV.
@@ -716,4 +715,5 @@ if __name__ == '__main__':
     b.k_d = .002                            # Change the default k_{d}.
     b.temperature_dependent = False         # Don't recalculate k_{h}.
     b.linear_temperature = False            # Use DICE temperature model.
+    b.log_all_output = True
     print(b.run())                          # Run the model & print the output.
