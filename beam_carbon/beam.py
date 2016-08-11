@@ -49,6 +49,7 @@ class BEAMCarbon(object):
         self._k_d = .05
         self._A = None
         self._B = None
+        self._H = None
         self._Alk = 767.
         self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
@@ -340,12 +341,22 @@ class BEAMCarbon(object):
         """
         if self._B is None:
             self.temp_calibrate(self.temperature_mod.initial_temp[1])
-            self._B = self.get_B(self.get_H(self.initial_carbon[1]))
+            self._B = self.get_B(self.H)
         return self._B
 
     @B.setter
     def B(self, value):
         self._B = value
+
+    @property
+    def H(self):
+        if self._H is None:
+            self._H = self.get_H(self.carbon_mass[1])
+        return self._H
+
+    @H.setter
+    def H(self, value):
+        self._H = value
 
     @property
     def salinity(self):
@@ -524,6 +535,7 @@ class BEAMCarbon(object):
             ('phi33', self.transfer_matrix[2][2]),
             ('A', self.A),
             ('B', self.B),
+            ('H', self.H),
             ('k_1', self.k_1),
             ('k_2', self.k_2),
             ('k_h', self.k_h),
@@ -589,8 +601,8 @@ class BEAMCarbon(object):
             if i % self.intervals == 0 and self.temperature_dependent:
                 self.temp_calibrate(self.temperature[1])
 
-            h = self.get_H(self.carbon_mass[1])
-            self.B = self.get_B(h)
+            self.H = self.get_H(self.carbon_mass[1])
+            self.B = self.get_B(self.H)
 
             emissions[0] = self.emissions[_i] * self.time_step / self.intervals
             self.total_emissions += emissions[0]
@@ -619,6 +631,7 @@ class BEAMCarbon(object):
 
         self.A = None
         self.B = None
+        self.H = None
         self.carbon_mass = None
 
         return output
