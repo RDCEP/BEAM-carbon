@@ -5,6 +5,7 @@ from collections import OrderedDict
 import os
 from math import floor
 from datetime import datetime
+from six import iteritems
 import numpy as np
 import pandas as pd
 from config import OUTPUT
@@ -531,7 +532,7 @@ class BEAMCarbon(object):
         arr = []
         idx = []
 
-        for k, v in darr.iteritems():
+        for k, v in iteritems(darr):
             if k in OUTPUT and i is None:
                 idx.append(k)
                 arr.append(v)
@@ -581,7 +582,7 @@ class BEAMCarbon(object):
         emissions = np.zeros(3)
         output = self.add_output()
 
-        for i in xrange(N):
+        for i in range(N):
 
             _i = int(floor(i / self.intervals)) # time_step
 
