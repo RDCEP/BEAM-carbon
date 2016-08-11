@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 from collections import OrderedDict
+import os
 from math import floor
+from datetime import datetime
+from six import iteritems
 import numpy as np
 import pandas as pd
 from config import OUTPUT
@@ -43,14 +46,18 @@ class BEAMCarbon(object):
         self._k_1 = 8e-7
         self._k_2 = 4.53e-10
         self._k_h = 1.23e3
+        self._k_d = .05
         self._A = None
         self._B = None
+        self._H = None
         self._Alk = 767.
-
+        self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
-
         self._linear_temperature = False
+        self.csv = os.path.join('..', 'output', '{}.csv'.format(
+            datetime.now().strftime('%Y%m%d%H%M%S')))
+        self.log_all_output = False
 
     @property
     def initial_carbon(self):
@@ -210,7 +217,11 @@ class BEAMCarbon(object):
         :return: k_{d}
         :rtype: float
         """
-        return .05
+        return self._k_d
+
+    @k_d.setter
+    def k_d(self, value):
+        self._k_d = value
 
     @property
     def delta(self):
@@ -219,7 +230,14 @@ class BEAMCarbon(object):
         :return: Ratio
         :rtype: float
         """
-        return 50.
+        return self._delta
+
+    @delta.setter
+    def delta(self, value):
+        self.initial_carbon[1] = 725 * 51 / (value + 1)
+        self.initial_carbon[2] = 36366 - self.initial_carbon[1]
+        self.Alk = 767 * 51 / (value + 1)
+        self._delta = value
 
     @property
     def k_h(self):
@@ -323,12 +341,22 @@ class BEAMCarbon(object):
         """
         if self._B is None:
             self.temp_calibrate(self.temperature_mod.initial_temp[1])
-            self._B = self.get_B(self.get_H(self.initial_carbon[1]))
+            self._B = self.get_B(self.H)
         return self._B
 
     @B.setter
     def B(self, value):
         self._B = value
+
+    @property
+    def H(self):
+        if self._H is None:
+            self._H = self.get_H(self.carbon_mass[1])
+        return self._H
+
+    @H.setter
+    def H(self, value):
+        self._H = value
 
     @property
     def salinity(self):
@@ -491,6 +519,15 @@ class BEAMCarbon(object):
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
     def add_output(self, i=None, output=None):
+        """Add model values at i to DataFrame output.
+
+        :param i: Current interval in model
+        :type i: int
+        :param output: Output at (i-1) as DataFrame
+        :type output: pd.DataFrame
+        :return: Output at i as DataFrame
+        :rtype: pd.DataFrame
+        """
 
         darr = OrderedDict([
             ('mass_atmosphere', self.carbon_mass[0]),
@@ -510,6 +547,7 @@ class BEAMCarbon(object):
             ('phi33', self.transfer_matrix[2][2]),
             ('A', self.A),
             ('B', self.B),
+            ('H', self.H),
             ('k_1', self.k_1),
             ('k_2', self.k_2),
             ('k_h', self.k_h),
@@ -518,7 +556,7 @@ class BEAMCarbon(object):
         arr = []
         idx = []
 
-        for k, v in darr.iteritems():
+        for k, v in iteritems(darr):
             if k in OUTPUT and i is None:
                 idx.append(k)
                 arr.append(v)
@@ -526,14 +564,45 @@ class BEAMCarbon(object):
                 arr.append(v)
 
         if output is None or i is None:
+            if self.log_all_output:
+                n = self.n * self.intervals + 1
+                cols = np.arange(self.n * self.intervals + 1) / self.intervals
+            else:
+                n = self.n + 1
+                cols = np.arange(self.n + 1) * self.time_step
             return pd.DataFrame(
-                np.tile(np.array(arr).reshape((len(arr), 1)), (self.n + 1,)),
+                np.tile(np.array(arr).reshape((len(arr), 1)), (n, )),
                 index=idx,
-                columns=np.arange(self.n + 1) * self.time_step,)
+                columns=cols,)
 
         output.iloc[:, i] = np.array(arr)
 
         return output
+
+    def land_sink(self, carbon_mass, i):
+        """Simulated land sink.
+
+        :param carbon_mass: Carbon mass in atmosphere in GtC
+        :type carbon_mass: float
+        :param i: Current interval in model
+        :type i: int
+        :return: Carbon mass in atmopshere at i
+        :rtype: float
+        """
+        annual_sink = 2.5
+        years_of_sink = 300
+        return carbon_mass - (
+            annual_sink * self.time_step / self.intervals) * (
+            (years_of_sink * self.intervals - self.time_step * self.intervals) /
+            (years_of_sink * self.intervals))
+
+    def reset_model(self):
+        """Reset model parameters for new run.
+        """
+        self.A = None
+        self.B = None
+        self.H = None
+        self.carbon_mass = None
 
     def run(self):
         """Run the BEAM model.
@@ -546,23 +615,24 @@ class BEAMCarbon(object):
         emissions = np.zeros(3)
         output = self.add_output()
 
-        for i in xrange(N):
+        for i in range(N):
 
             _i = int(floor(i / self.intervals)) # time_step
 
             if i % self.intervals == 0 and self.temperature_dependent:
                 self.temp_calibrate(self.temperature[1])
 
-            h = self.get_H(self.carbon_mass[1])
-            self.B = self.get_B(h)
+            self.H = self.get_H(self.carbon_mass[1])
+            self.B = self.get_B(self.H)
 
             emissions[0] = self.emissions[_i] * self.time_step / self.intervals
             self.total_emissions += emissions[0]
 
             self.carbon_mass += (
-                (self.transfer_matrix *
-                 np.divide(self.carbon_mass, self.intervals)).sum(axis=1) +
+                np.multiply((self.transfer_matrix * self.carbon_mass),
+                            self.time_step / self.intervals).sum(axis=1) +
                 emissions)
+            self.carbon_mass[0] = self.land_sink(self.carbon_mass[0], i)
 
             if (i + 1) % self.intervals == 0:
 
@@ -579,6 +649,15 @@ class BEAMCarbon(object):
                     ta, self.temperature[1])
 
                 output = self.add_output(_i+1, output)
+
+            else:
+                if self.log_all_output:
+                    output = self.add_output(i, output)
+
+        if self.log_all_output:
+            output.to_csv(self.csv)
+
+        self.reset_model()
 
         return output
 
@@ -644,14 +723,23 @@ def main():
 
 
 if __name__ == '__main__':
-    b = BEAMCarbon()
-    b.time_step = 10.
-    b.intervals = 2000
-    N = 100
-    b.emissions = np.array([
-        9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
-    ])
-    b.temperature_dependent = False
-    b.linear_temperature = False
-    r = b.run()
-    print(r)
+    ############################################################################
+    # The following is intended merely as an example of how to run the         #
+    # BEAM code in a python interpreter. It should be modified to suit         #
+    # the needs of the user.                                                   #
+    ############################################################################
+    b = BEAMCarbon()                        # Create a BEAMCarbon object.
+    b.time_step = 1.                        # 1 year times steps.
+    b.intervals = 24                        # Run BEAM 24 times each time step.
+    a2 = pd.DataFrame.from_csv(             # Load emissions input from CSV.
+        os.path.join(
+            '..', 'input', 'a2.csv'), index_col=1)
+    a2.fillna(0)
+    b.emissions = np.array(                 # Set emissions property with array
+        a2.ix[:, 'emissions'])              # from CSV.
+    b.delta = 5                             # Change the default delta.
+    b.k_d = .002                            # Change the default k_{d}.
+    b.temperature_dependent = False         # Don't recalculate k_{h}.
+    b.linear_temperature = False            # Use DICE temperature model.
+    b.log_all_output = True
+    print(b.run())                          # Run the model & print the output.
