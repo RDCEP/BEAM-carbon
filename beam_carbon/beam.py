@@ -698,12 +698,20 @@ def main():
 
 
 if __name__ == '__main__':
-    b = BEAMCarbon()
-    b.time_step = 1.
-    b.intervals = 24
-    a2 = pd.DataFrame.from_csv('../src/a2.csv', index_col=1)
+    ############################################################################
+    # The following is intended merely as an example of how to run the         #
+    # BEAM code in a python interpreter. It should be modified to suit         #
+    # the needs of the user.                                                   #
+    ############################################################################
+    b = BEAMCarbon()                        # Create a BEAMCarbon object.
+    b.time_step = 1.                        # 1 year times steps.
+    b.intervals = 24                        # Run BEAM 24 times each time step.
+    a2 = pd.DataFrame.from_csv(             # Load emissions input from CSV.
+        '../src/a2.csv', index_col=1)
     a2.fillna(0)
-    b.emissions = np.array(a2.ix[:, 'emissions'])
-    b.temperature_dependent = False
-    b.linear_temperature = False
-    print(b.run())
+    b.emissions = np.array(                 # Set emissions property with array
+        a2.ix[:, 'emissions'])              # from CSV.
+    b.temperature_dependent = False         # Don't recalculate k_{h}.
+    b.linear_temperature = False            # Use DICE temperature model.
+    print(b.run())                          # Run the model and print the
+    #                                       # output.
