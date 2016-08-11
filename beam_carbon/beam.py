@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
+import os
 from math import floor
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from beam_carbon.temperature import DICETemperature, LinearTemperature
@@ -46,8 +48,10 @@ class BEAMCarbon(object):
         self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
-
         self._linear_temperature = False
+        self.csv = os.path.join('..', 'test', '{}.csv'.format(
+            datetime.now().strftime('%Y%m%d%H%M%S')))
+        self.log_all_output = False
 
     @property
     def initial_carbon(self):
@@ -357,6 +361,20 @@ class BEAMCarbon(object):
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
+    def log(self, temp_atmosphere, temp_ocean, total_carbon, h, i):
+        if i == 0:
+            with open(self.csv, 'w') as f:
+                f.write('Ma,Mu,Ml,Ta,To,ka*A*B,TC,A,B,kh,H,pH\n')
+        with open(self.csv, 'a') as f:
+            f.write('{},{},{},{},{},{},{},{},{},{},{},{}\n'.format(
+                *np.concatenate((
+                    (self.carbon_mass.copy() - self.initial_carbon) / 2.13,
+                    np.array([temp_atmosphere, temp_ocean]),
+                    np.array([self.transfer_matrix[0][1],
+                              total_carbon,
+                              self.A, self.B, self.k_h, h,
+                              -np.log10(h)]))).tolist()))
+
     def run(self):
         N = self.n * self.intervals
         self.carbon_mass = self.initial_carbon.copy()
@@ -369,13 +387,13 @@ class BEAMCarbon(object):
             self.temperature.initial_temp,
             np.array([
                 self.transfer_matrix[0][1], self.transfer_matrix[1][1]]),
-            np.zeros(3),
-        )).reshape((10, 1)).copy(), (self.n + 1, ))
+            np.zeros(6),
+        )).reshape((13, 1)).copy(), (self.n + 1, ))
         output = pd.DataFrame(
             output,
             index=['mass_atmosphere', 'mass_upper', 'mass_lower',
                    'temp_atmosphere', 'temp_ocean', 'phi12', 'phi22',
-                   'cumulative', 'A', 'B'],
+                   'cumulative', 'A', 'B', 'H', 'pH', 'emissions'],
             columns=np.arange(self.n + 1) * self.time_step,
         )
 
@@ -396,6 +414,7 @@ class BEAMCarbon(object):
                 np.multiply((self.transfer_matrix * self.carbon_mass),
                             self.time_step / self.intervals).sum(axis=1) +
                 emissions)
+            self.carbon_mass[0] -= max(0, np.sum(2.5 - 2.5 * (np.arange(i, (i+1)) / 300.))) / self.intervals
 
             if (i + 1) % self.intervals == 0:
 
@@ -415,7 +434,11 @@ class BEAMCarbon(object):
                                     np.array([self.transfer_matrix[0][1],
                                               self.transfer_matrix[1][1],
                                               total_carbon,
-                                              self.A, self.B]))))
+                                              self.A, self.B, h,
+                                              -np.log10(h),
+                                              self.emissions[_i]]))))
+            if self.log_all_output:
+                self.log(temp_atmosphere, temp_ocean, total_carbon, h, i)
 
         self.A = None
         self.B = None
@@ -479,16 +502,12 @@ def main():
 
 
 if __name__ == '__main__':
-    """The following is meant merely as an example of running BEAM in
-    a python shell.
-    """
     b = BEAMCarbon()
-    b.time_step = 10.
-    b.intervals = 200
-    b.emissions = np.array([
-        9.58, 12.25, 14.72, 16.07, 17.43, 19.16, 20.89, 23.22, 26.15, 29.09
-    ])
+    b.time_step = 1.
+    b.intervals = 24
+    a2 = pd.DataFrame.from_csv('../src/a2.csv', index_col=1)
+    a2.fillna(0)
+    b.emissions = np.array(a2.ix[:, 'emissions'])
     b.temperature_dependent = False
     b.linear_temperature = False
-    r = b.run()
-    print(r)
+    print(b.run())
