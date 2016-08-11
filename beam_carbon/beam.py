@@ -516,6 +516,15 @@ class BEAMCarbon(object):
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
     def add_output(self, i=None, output=None):
+        """Add model values at i to DataFrame output.
+
+        :param i: Current interval in model
+        :type i: int
+        :param output: Output at (i-1) as DataFrame
+        :type output: pd.DataFrame
+        :return: Output at i as DataFrame
+        :rtype: pd.DataFrame
+        """
 
         darr = OrderedDict([
             ('mass_atmosphere', self.carbon_mass[0]),
@@ -568,12 +577,29 @@ class BEAMCarbon(object):
         return output
 
     def land_sink(self, carbon_mass, i):
+        """Simulated land sink.
+
+        :param carbon_mass: Carbon mass in atmosphere in GtC
+        :type carbon_mass: float
+        :param i: Current interval in model
+        :type i: int
+        :return: Carbon mass in atmopshere at i
+        :rtype: float
+        """
         annual_sink = 2.5
         years_of_sink = 300
         return carbon_mass - (
             annual_sink * self.time_step / self.intervals) * (
             (years_of_sink * self.intervals - self.time_step * self.intervals) /
             (years_of_sink * self.intervals))
+
+    def reset_model(self):
+        """Reset model parameters for new run.
+        """
+        self.A = None
+        self.B = None
+        self.H = None
+        self.carbon_mass = None
 
     def run(self):
         """Run the BEAM model.
@@ -625,13 +651,10 @@ class BEAMCarbon(object):
                 if self.log_all_output:
                     output = self.add_output(i, output)
 
-        self.A = None
-        self.B = None
-        self.H = None
-        self.carbon_mass = None
-
         if self.log_all_output:
             output.to_csv(self.csv)
+
+        self.reset_model()
 
         return output
 
