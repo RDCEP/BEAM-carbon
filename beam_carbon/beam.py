@@ -12,7 +12,7 @@ from config import OUTPUT
 from beam_carbon.temperature import DICETemperature, LinearTemperature
 
 
-__version__ = '0.3'
+__version__ = '0.3.2'
 
 
 class BEAMCarbon(object):
@@ -34,7 +34,8 @@ class BEAMCarbon(object):
         self._temperature_dependent = True
         self._intervals = intervals
         self._time_step = time_step
-        self.temperature_mod = DICETemperature(self.time_step, self.intervals, 0)
+        self.temperature_mod = DICETemperature(
+            self.time_step, self.intervals, 0)
         self._temperature = self.temperature_mod.initial_temp.copy()
         self.total_emissions = 0
 
@@ -108,6 +109,13 @@ class BEAMCarbon(object):
 
     @property
     def temperature(self):
+        """Values for temperature change in atmosphere and oceans at each
+        timestep in degrees C. Default values for time 0 are taken from
+        the active temperature model.
+
+        :return: Two layer temperature change
+        :rtype: np.ndarray
+        """
         return self._temperature
 
     @temperature.setter
@@ -188,7 +196,12 @@ class BEAMCarbon(object):
 
     @property
     def intervals(self):
-        """Number of intervals in each time step.
+        """Number of intervals in each time step. Note that intervals are
+        based on the size of the time step---they're not necessarily
+        per year, unless the time step is one year.
+
+        :return: Intervals per time step
+        :rtype: int
         """
         return self._intervals
 
@@ -234,6 +247,12 @@ class BEAMCarbon(object):
 
     @delta.setter
     def delta(self, value):
+        """Recalibrate carbon in ocean and alkalinity when delta is changed.
+
+        :param value: delta
+        :type value: float
+        :return: None
+        """
         self.initial_carbon[1] = 725 * 51 / (value + 1)
         self.initial_carbon[2] = 36366 - self.initial_carbon[1]
         self.Alk = 767 * 51 / (value + 1)
@@ -350,6 +369,11 @@ class BEAMCarbon(object):
 
     @property
     def H(self):
+        """Concentration of hydrogen ions in the ocean.
+
+        :return: H+
+        :rtype: float
+        """
         if self._H is None:
             self._H = self.get_H(self.carbon_mass[1])
         return self._H
@@ -370,7 +394,8 @@ class BEAMCarbon(object):
     @property
     def temperature_dependent(self):
         """Switch for calculating temperature-dependent parameters k_{1},
-        k_{2}, and k_{h}.
+        k_{2}, and k_{h}. Values are recalculated each time step, when the
+        temperature model is run, not every interval.
 
         :return: Temperature dependence state
         :rtype: bool
@@ -597,8 +622,7 @@ class BEAMCarbon(object):
             (years_of_sink * self.intervals))
 
     def reset_model(self):
-        """Reset model parameters for new run.
-        """
+        """Reset model parameters for new run."""
         self.A = None
         self.B = None
         self.H = None
