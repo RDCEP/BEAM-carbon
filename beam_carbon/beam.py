@@ -709,6 +709,12 @@ def main():
             '-o', '--output', type=str, default='beam_output.csv',
             help='Write values to CSV file instead of stdout')
         parser.add_argument(
+            '-d', '--delta', type=float, default='50',
+            help='Value for delta (ratio of lower ocean to upper)')
+        parser.add_argument(
+            '-k', '--kd', type=float, default='.05',
+            help='Transfer coefficient from upper to lower ocean')
+        parser.add_argument(
             '-T', '--tempdependent', type=bool, default=False,
             help='Recalibrate k_h, k_1, and k_2 based on temperature of '
                  'upper ocean at each interval.')
@@ -725,6 +731,10 @@ def main():
             beam.intervals = args.intervals
         if args.tempdependent:
             beam.temperature_dependent = True
+        if args.delta:
+            beam.delta = args.delta
+        if args.kd:
+            beam.k_d = args.kd
         return beam.run()
 
     def write_beam(output, csv=None):
