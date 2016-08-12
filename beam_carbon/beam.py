@@ -616,9 +616,11 @@ class BEAMCarbon(object):
         """
         annual_sink = 2.5
         years_of_sink = 300
+        if i > years_of_sink / self.time_step * self.intervals:
+            return carbon_mass
         return carbon_mass - (
             annual_sink * self.time_step / self.intervals) * (
-            (years_of_sink * self.intervals - self.time_step * self.intervals) /
+            (years_of_sink * self.intervals - self.time_step * i) /
             (years_of_sink * self.intervals))
 
     def reset_model(self):
