@@ -470,13 +470,10 @@ class BEAMCarbon(object):
         :return: H
         :rtype: float
         """
-        a = -self.k_1 * self.k_2 * (self.Alk - mass_upper) / (2 * self.Alk)
-        b = (np.sqrt(self.k_1 * self.k_2 * (
-            self.Alk ** 2 * self.k_1 * self.k_2 - 4 * self.Alk ** 2 -
-            2 * self.Alk * mass_upper * self.k_1 * self.k_2 + 8 *
-            self.Alk * mass_upper + mass_upper ** 2 * self.k_1 * self.k_2)) /
-            (2 * self.Alk))
-        return a + b if b > a else a - b
+        p0 = 1
+        p1 = (self.k_1 - mass_upper * self.k_1 / self.Alk)
+        p2 = (1 - 2 * mass_upper / self.Alk) * self.k_1 * self.k_2
+        return max(np.roots([p0, p1, p2]))
 
     def get_kh(self, temp_ocean):
         """Calculate temperature dependent k_{h}
@@ -674,11 +671,11 @@ class BEAMCarbon(object):
                 self.temperature[1] = self.temperature_mod.temp_ocean(
                     ta, self.temperature[1])
 
-                output = self.add_output(_i+1, output)
+                if not self.log_all_output:
+                    output = self.add_output(_i+1, output)
 
-            else:
-                if self.log_all_output:
-                    output = self.add_output(i, output)
+            if self.log_all_output:
+                output = self.add_output(i+1, output)
 
         if self.log_all_output:
             output.to_csv(self.csv)
