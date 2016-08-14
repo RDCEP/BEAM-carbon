@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+LOG_TO_CSV = False
+LOG_ALL_INTERVALS = False
 
 OUTPUT = [
     'mass_atmosphere',
@@ -23,4 +25,5 @@ OUTPUT = [
     'k_1',
     'k_2',
     'k_h',
+    'pH',
 ]

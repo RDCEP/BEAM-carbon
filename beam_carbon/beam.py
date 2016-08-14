@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
-from collections import OrderedDict
 import os
 from math import floor
-from datetime import datetime
-from six import iteritems
 import numpy as np
 import pandas as pd
-from config import OUTPUT
+from config import LOG_ALL_INTERVALS, LOG_TO_CSV
 from beam_carbon.temperature import DICETemperature, LinearTemperature
+from beam_carbon.beam_output import BEAMOutput
 
 
 __version__ = '0.3.2'
@@ -56,9 +54,7 @@ class BEAMCarbon(object):
         self._initial_carbon = np.array([808.9, 725., 35641.])
         self._carbon_mass = None
         self._linear_temperature = False
-        self.csv = os.path.join('..', 'output', '{}.csv'.format(
-            datetime.now().strftime('%Y%m%d%H%M%S')))
-        self.log_all_output = False
+        self.output = BEAMOutput(self)
 
     @property
     def initial_carbon(self):
@@ -516,8 +512,9 @@ class BEAMCarbon(object):
         """
         return (
             5371.96 + 1.671221 * t + 0.22913 * self.salinity +
-            18.3802 * np.log10(self.salinity)) - (128375.28 / t +
-            2194.30 * np.log10(t) + 8.0944e-4 * self.salinity * t +
+            18.3802 * np.log10(self.salinity)) - (
+            128375.28 / t + 2194.30 * np.log10(t) +
+            8.0944e-4 * self.salinity * t +
             5617.11 * np.log10(self.salinity) / t) + 2.136 * self.salinity / t
 
     def get_k1(self, temp_ocean):
@@ -539,67 +536,6 @@ class BEAMCarbon(object):
         :rtype: float
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
-
-    def add_output(self, i=None, output=None):
-        """Add model values at i to DataFrame output.
-
-        :param i: Current interval in model
-        :type i: int
-        :param output: Output at (i-1) as DataFrame
-        :type output: pd.DataFrame
-        :return: Output at i as DataFrame
-        :rtype: pd.DataFrame
-        """
-
-        darr = OrderedDict([
-            ('mass_atmosphere', self.carbon_mass[0]),
-            ('mass_upper', self.carbon_mass[1]),
-            ('mass_lower', self.carbon_mass[2]),
-            ('temp_atmosphere', self.temperature[0]),
-            ('temp_ocean', self.temperature[1]),
-            ('cumulative_emissions', self.total_emissions),
-            ('phi11', self.transfer_matrix[0][0]),
-            ('phi12', self.transfer_matrix[0][1]),
-            ('phi13', self.transfer_matrix[0][2]),
-            ('phi21', self.transfer_matrix[1][0]),
-            ('phi22', self.transfer_matrix[1][1]),
-            ('phi23', self.transfer_matrix[1][2]),
-            ('phi31', self.transfer_matrix[2][0]),
-            ('phi32', self.transfer_matrix[2][1]),
-            ('phi33', self.transfer_matrix[2][2]),
-            ('A', self.A),
-            ('B', self.B),
-            ('H', self.H),
-            ('k_1', self.k_1),
-            ('k_2', self.k_2),
-            ('k_h', self.k_h),
-        ])
-
-        arr = []
-        idx = []
-
-        for k, v in iteritems(darr):
-            if k in OUTPUT and i is None:
-                idx.append(k)
-                arr.append(v)
-            elif k in OUTPUT:
-                arr.append(v)
-
-        if output is None or i is None:
-            if self.log_all_output:
-                n = self.n * self.intervals + 1
-                cols = np.arange(self.n * self.intervals + 1) / self.intervals
-            else:
-                n = self.n + 1
-                cols = np.arange(self.n + 1) * self.time_step
-            return pd.DataFrame(
-                np.tile(np.array(arr).reshape((len(arr), 1)), (n, )),
-                index=idx,
-                columns=cols,)
-
-        output.iloc[:, i] = np.array(arr)
-
-        return output
 
     def land_sink(self, carbon_mass, i):
         """Simulated land sink.
@@ -636,11 +572,11 @@ class BEAMCarbon(object):
         N = self.n * self.intervals
         self.carbon_mass = self.initial_carbon.copy()
         emissions = np.zeros(3)
-        output = self.add_output()
+        self.output.add_interval(0)
 
         for i in range(N):
 
-            _i = int(floor(i / self.intervals)) # time_step
+            _i = int(floor(i / self.intervals))
 
             if i % self.intervals == 0 and self.temperature_dependent:
                 self.temp_calibrate(self.temperature[1])
@@ -671,18 +607,18 @@ class BEAMCarbon(object):
                 self.temperature[1] = self.temperature_mod.temp_ocean(
                     ta, self.temperature[1])
 
-                if not self.log_all_output:
-                    output = self.add_output(_i+1, output)
+                if not LOG_ALL_INTERVALS:
+                    self.output.add_interval(_i + 1)
 
-            if self.log_all_output:
-                output = self.add_output(i+1, output)
+            if LOG_ALL_INTERVALS:
+                self.output.add_interval(i + 1)
 
-        if self.log_all_output:
-            output.to_csv(self.csv)
+        if LOG_TO_CSV:
+            self.output.to_csv()
 
         self.reset_model()
 
-        return output
+        return self.output.df
 
 
 def main():
@@ -743,16 +679,16 @@ def main():
             print(output.to_string())
         return True
 
-    csv = args.output if args.output else None
+    csv_file = args.output if args.output else None
     emissions = np.array([float(n) for n in args.emissions.split(',')]) \
         if args.emissions else None
 
     if args.input:
         with open(args.input, 'r') as f:
             for line in f:
-                write_beam(run_beam(line.split(',')), csv=csv)
+                write_beam(run_beam(line.split(',')), csv=csv_file)
     else:
-        write_beam(run_beam(emissions), csv=csv)
+        write_beam(run_beam(emissions), csv=csv_file)
 
 
 if __name__ == '__main__':
