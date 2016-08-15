@@ -52,6 +52,8 @@ class BEAMCarbon(object):
         self._Alk = 767.
         self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
+        self._annual_land_sink = 0
+        self._land_sink_years = 300
         self._carbon_mass = None
         self._linear_temperature = False
         self.output = BEAMOutput(self)
@@ -537,6 +539,27 @@ class BEAMCarbon(object):
         """
         return 10 ** -self.get_pk2(283.15 + temp_ocean)
 
+    @property
+    def annual_land_sink(self):
+        return self._annual_land_sink
+
+    @annual_land_sink.setter
+    def annual_land_sink(self, value):
+        self._annual_land_sink = value
+
+    @property
+    def land_sink_years(self):
+        return self._land_sink_years
+
+    @land_sink_years.setter
+    def land_sink_years(self, value):
+
+        if not value > 0:
+            raise ValueError(
+                'BEAMCarbon.land_sink_years must be positive.')
+
+        self._land_sink_years = value
+
     def land_sink(self, carbon_mass, i):
         """Simulated land sink.
 
@@ -547,14 +570,12 @@ class BEAMCarbon(object):
         :return: Carbon mass in atmopshere at i
         :rtype: float
         """
-        annual_sink = 2.5
-        years_of_sink = 300
-        if i > years_of_sink / self.time_step * self.intervals:
+        if i > self.land_sink_years / self.time_step * self.intervals:
             return carbon_mass
         return carbon_mass - (
-            annual_sink * self.time_step / self.intervals) * (
-            (years_of_sink * self.intervals - self.time_step * i) /
-            (years_of_sink * self.intervals))
+            self.annual_land_sink * self.time_step / self.intervals) * (
+            (self.land_sink_years * self.intervals - self.time_step * i) /
+            (self.land_sink_years * self.intervals))
 
     def reset_model(self):
         """Reset model parameters for new run."""
@@ -699,7 +720,7 @@ if __name__ == '__main__':
     ############################################################################
     b = BEAMCarbon()                        # Create a BEAMCarbon object.
     b.time_step = 1.                        # 1 year times steps.
-    b.intervals = 24                        # Run BEAM 24 times each time step.
+    b.intervals = 120                       # Run BEAM 10 times each month.
     a2 = pd.DataFrame.from_csv(             # Load emissions input from CSV.
         os.path.join(
             '..', 'input', 'a2.csv'), index_col=1)
@@ -708,6 +729,9 @@ if __name__ == '__main__':
         a2.ix[:, 'emissions'])              # from CSV.
     b.delta = 5                             # Change the default delta.
     b.k_d = .002                            # Change the default k_{d}.
+    b.land_sink_years = 300                 # Set length of land sink.
+    b.annual_land_sink = 2.5                # Set amount of annual land sink
+                                            # in GtC.
     b.temperature_dependent = False         # Don't recalculate k_{h}.
     b.linear_temperature = False            # Use DICE temperature model.
     b.log_all_output = True
