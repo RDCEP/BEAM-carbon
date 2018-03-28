@@ -1,0 +1,29 @@
+# -*- coding: utf-8 -*-
+
+LOG_TO_CSV = False
+LOG_ALL_INTERVALS = False
+
+OUTPUT = [
+    'mass_atmosphere',
+    'mass_upper',
+    'mass_lower',
+    'temp_atmosphere',
+    'temp_ocean',
+    'cumulative_emissions',
+    # 'phi11',
+    'phi12',
+    # 'phi13',
+    # 'phi21',
+    'phi22',
+    # 'phi23',
+    # 'phi31',
+    # 'phi32',
+    # 'phi33',
+    'A',
+    'B',
+    'H',
+    'k_1',
+    'k_2',
+    'k_h',
+    'pH',
+]
