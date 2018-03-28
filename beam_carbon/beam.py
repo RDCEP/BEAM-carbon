@@ -46,13 +46,14 @@ class BEAMCarbon(object):
         self._k_2 = 4.53e-10
         self._k_h = 1.23e3
         self._k_d = .05
+        self._k_a = .2
         self._A = None
         self._B = None
         self._H = None
         self._Alk = 767.
         self._delta = 50.
         self._initial_carbon = np.array([808.9, 725., 35641.])
-        self._annual_land_sink = 0
+        self._annual_land_sink = 2.5
         self._land_sink_years = 300
         self._carbon_mass = None
         self._linear_temperature = False
@@ -219,7 +220,11 @@ class BEAMCarbon(object):
         :return: k_{a}
         :rtype: float
         """
-        return .2
+        return self._k_a
+
+    @k_a.setter
+    def k_a(self, value):
+        self._k_a = value
 
     @property
     def k_d(self):
@@ -573,9 +578,8 @@ class BEAMCarbon(object):
         if i > self.land_sink_years / self.time_step * self.intervals:
             return carbon_mass
         return carbon_mass - (
-            self.annual_land_sink * self.time_step / self.intervals) * (
-            (self.land_sink_years * self.intervals - self.time_step * i) /
-            (self.land_sink_years * self.intervals))
+            self.annual_land_sink * self.time_step / self.intervals *
+            (1. - i / (self.land_sink_years / self.time_step * self.intervals)))
 
     def reset_model(self):
         """Reset model parameters for new run."""
@@ -612,7 +616,8 @@ class BEAMCarbon(object):
                 np.multiply((self.transfer_matrix * self.carbon_mass),
                             self.time_step / self.intervals).sum(axis=1) +
                 emissions)
-            self.carbon_mass[0] = self.land_sink(self.carbon_mass[0], i)
+            if self.annual_land_sink > 0:
+                self.carbon_mass[0] = self.land_sink(self.carbon_mass[0], i)
 
             if (i + 1) % self.intervals == 0:
 
