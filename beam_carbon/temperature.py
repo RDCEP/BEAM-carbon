@@ -100,8 +100,8 @@ class Temperature(object):
             :rtype: float
         """
         return (
-            temp_ocean + self.transfer_matrix[3] *
-            (temp_atmosphere - temp_ocean)
+            temp_ocean + (self.time_step / 10. / self.periods) *
+            self.transfer_matrix[3] * (temp_atmosphere - temp_ocean)
         )
 
 
@@ -125,7 +125,7 @@ class DICETemperature(Temperature):
         """
         return (
             temp_atmosphere +
-            self.transfer_matrix[0] * (
+            (self.time_step / 10. / self.periods) * self.transfer_matrix[0] * (
                 self.forcing(index, mass_atmosphere) - (
                     self.forcing_co2_doubling / self.temp_co2_doubling) *
                 temp_atmosphere - self.transfer_matrix[2] *
@@ -145,4 +145,6 @@ class LinearTemperature(Temperature):
         #             )) * 1e-3)
         #     ) * 1e-3
         # )
-        return self.initial_temp[0] + 1.7e-3 * kwargs['carbon']
+        return self.initial_temp[0] + (
+                (self.time_step / 10. / self.periods) *
+                1.7e-3 * kwargs['carbon'])
