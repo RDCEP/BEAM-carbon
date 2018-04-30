@@ -30,8 +30,6 @@ class BEAMCarbon(object):
         """
         self.intervals = intervals
         self.time_step = time_step
-        self.temperature_mod = DICETemperature(
-            self.time_step, self.intervals, 0)
         self.total_emissions = 0
 
         if emissions is not None and type(emissions) in [list, np.ndarray]:
@@ -51,6 +49,7 @@ class BEAMCarbon(object):
         self.mass_atmosphere = np.empty(self.n * self.intervals)
         self.mass_upper = np.empty(self.n * self.intervals)
         self.mass_lower = np.empty(self.n * self.intervals)
+        self.forcing = np.empty(self.n * self.intervals)
         self.temp_atmosphere = np.empty(self.n * self.intervals)
         self.temp_ocean = np.empty(self.n * self.intervals)
         self.k_1[:] = 8e-7
@@ -65,6 +64,7 @@ class BEAMCarbon(object):
         self.mass_atmosphere[0] = 808.9
         self.mass_upper[0] = 725.
         self.mass_lower[0] = 35641.
+        self.mass_pi = 595.2
         self.temp_atmosphere[0] = .7307
         self.temp_ocean[0] = .0068
         self.salinity = 35.
@@ -75,13 +75,16 @@ class BEAMCarbon(object):
         self.A[:] = self.get_A(0)
         self.H[:] = self.get_H(0)
         self.B[:] = self.get_B(0)
+        self.dt = self.time_step / self.intervals
+        self.mu_at = 0.22 / 10. * self.dt
+        self.mu_lo = (1 / 6) / 10 * self.dt
+        self.gamma = 0.3
+        self.alpha = 3.8
+        self.beta = 3.0
+        self.Lambda = self.alpha / self.beta
+        self.forcing[0] = self.alpha * np.log2(
+            self.mass_atmosphere[0] / self.mass_pi)
         self.output = BEAMOutput(self)
-        if self.linear_temperature:
-            self.temperature_mod = LinearTemperature(self.time_step,
-                                                     self.intervals, self.n)
-        else:
-            self.temperature_mod = DICETemperature(self.time_step,
-                                                   self.intervals, self.n)
 
     def transfer_matrix(self, i):
         """3 by 3 matrix of transfer coefficients for carbon cycle.
@@ -107,7 +110,6 @@ class BEAMCarbon(object):
         self.pk2[i] = self.get_pk2(i)
         self.k_2[i] = self.get_k2(i)
         self.k_h[i] = self.get_kh(i)
-        self.A[i] = self.get_A(i)
 
     def get_B(self, i):
         """Calculate B (Ratio of dissolved CO2 to total oceanic carbon),
@@ -232,13 +234,17 @@ class BEAMCarbon(object):
 
             _i = int(floor(i / self.intervals))
 
-            self.temp_atmosphere[i] = self.temperature_mod.temp_atmosphere(
-                index=_i, temp_atmosphere=self.temp_atmosphere[i - 1],
-                temp_ocean=self.temp_ocean[i - 1],
-                mass_atmosphere=self.mass_atmosphere[i - 1],
-            )
-            self.temp_ocean[i] = self.temperature_mod.temp_ocean(
-                self.temp_atmosphere[i - 1], self.temp_ocean[i - 1])
+            self.forcing[i] = self.alpha * np.log2(
+                self.mass_atmosphere[i-1] / self.mass_pi)
+
+            self.temp_atmosphere[i] = (
+                    self.temp_atmosphere[i-1] + self.mu_at *
+                    (self.Lambda * ((self.forcing[i] / self.Lambda) -
+                                    self.temp_atmosphere[i-1]) - self.gamma *
+                     (self.temp_atmosphere[i-1] - self.temp_ocean[i-1])))
+            self.temp_ocean[i] = (
+                    self.temp_ocean[i-1] + self.mu_lo * self.gamma
+                    * (self.temp_atmosphere[i-1] - self.temp_ocean[i-1]))
 
             if self.temperature_dependent:
                 self.temp_calibrate(i)
@@ -251,8 +257,8 @@ class BEAMCarbon(object):
             self.total_emissions += emissions[0]
             delta_carbon = np.multiply(
                 (self.transfer_matrix(i) * np.array([self.mass_atmosphere[i-1],
-                                                  self.mass_upper[i-1],
-                                                  self.mass_lower[i-1]])),
+                                                     self.mass_upper[i-1],
+                                                     self.mass_lower[i-1]])),
                  self.time_step / self.intervals).sum(axis=1) + emissions
             self.mass_atmosphere[i] = self.mass_atmosphere[i-1] + delta_carbon[0]
             self.mass_upper[i] = self.mass_upper[i-1] + delta_carbon[1]
